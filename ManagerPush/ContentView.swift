@@ -4,14 +4,73 @@ struct ContentView: View {
     @StateObject private var dm = DeviceManager.shared
 
     var body: some View {
-        NavigationView {
-            if dm.isPaired {
-                SettingsView()
-            } else {
-                PairingView()
-            }
+        if dm.isPaired {
+            MainTabView()
+        } else {
+            PairingView()
         }
+    }
+}
+
+// MARK: - Tab Bar
+
+struct MainTabView: View {
+    @State private var selectedTab = 0
+
+    var body: some View {
+        TabView(selection: $selectedTab) {
+            DashboardView()
+                .tabItem {
+                    Image(systemName: "chart.bar.fill")
+                    Text("Dashboard")
+                }
+                .tag(0)
+
+            NotificationsPlaceholderView()
+                .tabItem {
+                    Image(systemName: "bell.fill")
+                    Text("Notificações")
+                }
+                .tag(1)
+
+            NavigationView {
+                SettingsView()
+            }
+            .tabItem {
+                Image(systemName: "gearshape.fill")
+                Text("Ajustes")
+            }
+            .tag(2)
+        }
+        .accentColor(.mgAccent)
         .preferredColorScheme(.dark)
+        .onAppear {
+            let appearance = UITabBarAppearance()
+            appearance.backgroundColor = UIColor(Color.mgCard)
+            appearance.shadowColor = UIColor(Color.mgBorder)
+            UITabBar.appearance().standardAppearance = appearance
+            UITabBar.appearance().scrollEdgeAppearance = appearance
+        }
+    }
+}
+
+// MARK: - Notifications Placeholder
+
+struct NotificationsPlaceholderView: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "bell.slash")
+                .font(.system(size: 40))
+                .foregroundColor(.mgText3)
+            Text("Notificações")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(.mgText)
+            Text("Histórico de notificações em breve")
+                .font(.system(size: 13))
+                .foregroundColor(.mgText3)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.mgBg)
     }
 }
 
@@ -27,28 +86,34 @@ struct PairingView: View {
 
             Image(systemName: "bell.badge.fill")
                 .font(.system(size: 60))
-                .foregroundColor(.blue)
+                .foregroundColor(.mgAccent)
 
             Text("Manager")
                 .font(.largeTitle)
                 .fontWeight(.bold)
+                .foregroundColor(.mgText)
 
             Text("Digite o código de pareamento\ngerado no painel web")
                 .multilineTextAlignment(.center)
-                .foregroundColor(.secondary)
+                .foregroundColor(.mgText3)
 
             TextField("000000", text: $code)
                 .keyboardType(.numberPad)
                 .font(.system(size: 32, weight: .bold, design: .monospaced))
                 .multilineTextAlignment(.center)
+                .foregroundColor(.mgText)
                 .padding()
-                .background(Color(.systemGray6))
-                .cornerRadius(12)
+                .background(Color.mgCard)
+                .cornerRadius(9)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 9)
+                        .stroke(Color.mgBorder, lineWidth: 1)
+                )
                 .padding(.horizontal, 60)
 
             if !dm.pairingError.isEmpty {
                 Text(dm.pairingError)
-                    .foregroundColor(.red)
+                    .foregroundColor(.mgRed)
                     .font(.caption)
             }
 
@@ -57,6 +122,7 @@ struct PairingView: View {
             }) {
                 if dm.isLoading {
                     ProgressView()
+                        .tint(.white)
                         .frame(maxWidth: .infinity)
                         .padding()
                 } else {
@@ -66,9 +132,9 @@ struct PairingView: View {
                         .padding()
                 }
             }
-            .background(Color.blue)
+            .background(Color.mgAccent)
             .foregroundColor(.white)
-            .cornerRadius(12)
+            .cornerRadius(9)
             .padding(.horizontal, 40)
             .disabled(code.count != 6 || dm.isLoading)
             .opacity(code.count == 6 ? 1 : 0.5)
@@ -76,7 +142,8 @@ struct PairingView: View {
             Spacer()
             Spacer()
         }
-        .navigationBarHidden(true)
+        .background(Color.mgBg.ignoresSafeArea())
+        .preferredColorScheme(.dark)
     }
 }
 
@@ -87,34 +154,27 @@ struct SettingsView: View {
 
     var body: some View {
         List {
-            // Sale Notifications
             Section {
                 Toggle("Vendas pendentes", isOn: $dm.notifyPending)
                     .onChange(of: dm.notifyPending) { val in
                         Task { await dm.updatePreference("notifyPending", value: val) }
                     }
-
                 Toggle("Vendas aprovadas", isOn: $dm.notifyApproved)
                     .onChange(of: dm.notifyApproved) { val in
                         Task { await dm.updatePreference("notifyApproved", value: val) }
                     }
-
                 Toggle("Vendas recusadas", isOn: $dm.notifyRefused)
                     .onChange(of: dm.notifyRefused) { val in
                         Task { await dm.updatePreference("notifyRefused", value: val) }
                     }
-
                 Toggle("Vendas reembolsadas", isOn: $dm.notifyRefunded)
                     .onChange(of: dm.notifyRefunded) { val in
                         Task { await dm.updatePreference("notifyRefunded", value: val) }
                     }
             } header: {
                 Text("Notificações de Venda")
-            } footer: {
-                Text("Seja notificado sempre que for realizada uma nova venda")
             }
 
-            // Value display
             Section {
                 Picker("Valor da venda", selection: $dm.valueDisplay) {
                     Text("Líquido").tag("net")
@@ -124,12 +184,10 @@ struct SettingsView: View {
                 .onChange(of: dm.valueDisplay) { val in
                     Task { await dm.updatePreference("valueDisplay", value: val) }
                 }
-
                 Toggle("Nome do produto", isOn: $dm.showProductName)
                     .onChange(of: dm.showProductName) { val in
                         Task { await dm.updatePreference("showProductName", value: val) }
                     }
-
                 Toggle("Valor de utm_campaign", isOn: $dm.showCampaignName)
                     .onChange(of: dm.showCampaignName) { val in
                         Task { await dm.updatePreference("showCampaignName", value: val) }
@@ -138,41 +196,34 @@ struct SettingsView: View {
                 Text("Formato da Notificação")
             }
 
-            // Preview
             Section {
                 NotificationPreview(dm: dm)
             } header: {
-                Text("Prévia de Notificação")
+                Text("Prévia")
             }
 
-            // Report notifications
             Section {
-                Toggle("Notificação das 08:00", isOn: $dm.reportAt08)
+                Toggle("08:00", isOn: $dm.reportAt08)
                     .onChange(of: dm.reportAt08) { val in
                         Task { await dm.updatePreference("reportAt08", value: val) }
                     }
-
-                Toggle("Notificação das 12:00", isOn: $dm.reportAt12)
+                Toggle("12:00", isOn: $dm.reportAt12)
                     .onChange(of: dm.reportAt12) { val in
                         Task { await dm.updatePreference("reportAt12", value: val) }
                     }
-
-                Toggle("Notificação das 18:00", isOn: $dm.reportAt18)
+                Toggle("18:00", isOn: $dm.reportAt18)
                     .onChange(of: dm.reportAt18) { val in
                         Task { await dm.updatePreference("reportAt18", value: val) }
                     }
-
-                Toggle("Notificação das 23:00", isOn: $dm.reportAt23)
+                Toggle("23:00", isOn: $dm.reportAt23)
                     .onChange(of: dm.reportAt23) { val in
                         Task { await dm.updatePreference("reportAt23", value: val) }
                     }
             } header: {
-                Text("Notificações de Relatório")
-            } footer: {
-                Text("Receba um resumo de vendas, faturamento e lucro nos horários selecionados")
+                Text("Relatórios Agendados")
             }
         }
-        .navigationTitle("Configurações")
+        .navigationTitle("Ajustes")
         .onAppear {
             Task { await dm.fetchPreferences() }
         }
@@ -188,7 +239,7 @@ struct NotificationPreview: View {
         HStack(spacing: 12) {
             Image(systemName: "bell.fill")
                 .font(.title2)
-                .foregroundColor(.blue)
+                .foregroundColor(.mgAccent)
                 .frame(width: 40, height: 40)
                 .background(Color(.systemGray5))
                 .cornerRadius(8)
@@ -197,7 +248,6 @@ struct NotificationPreview: View {
                 Text("Venda aprovada!")
                     .font(.subheadline)
                     .fontWeight(.semibold)
-
                 Text(previewBody)
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -209,21 +259,13 @@ struct NotificationPreview: View {
 
     var previewBody: String {
         var parts: [String] = []
-
         if dm.valueDisplay == "net" {
             parts.append("Valor líquido: R$ 16,77")
         } else if dm.valueDisplay == "gross" {
             parts.append("Valor bruto: R$ 17,81")
         }
-
-        if dm.showProductName {
-            parts.append("Taxa de validação")
-        }
-
-        if dm.showCampaignName {
-            parts.append("SITE ABO - 2/3")
-        }
-
+        if dm.showProductName { parts.append("Taxa de validação") }
+        if dm.showCampaignName { parts.append("SITE ABO - 2/3") }
         return parts.isEmpty ? "Notificação de venda" : parts.joined(separator: " | ")
     }
 }
