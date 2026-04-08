@@ -93,6 +93,12 @@ class DeviceManager: ObservableObject {
         _ = try? await URLSession.shared.data(for: request)
     }
 
+    func unpair() {
+        isPaired = false
+        UserDefaults.standard.set(false, forKey: "isPaired")
+        UserDefaults.standard.removeObject(forKey: "pairingCode")
+    }
+
     // MARK: - Preferences
 
     func fetchPreferences() async {

@@ -222,6 +222,18 @@ struct SettingsView: View {
             } header: {
                 Text("Relatórios Agendados")
             }
+
+            Section {
+                Button(role: .destructive) {
+                    dm.unpair()
+                } label: {
+                    HStack {
+                        Spacer()
+                        Text("Parear novamente")
+                        Spacer()
+                    }
+                }
+            }
         }
         .navigationTitle("Ajustes")
         .onAppear {
