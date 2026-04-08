@@ -1,4 +1,6 @@
 import SwiftUI
+import Combine
+import UIKit
 
 // MARK: - Color Constants (matching Manager design system)
 
