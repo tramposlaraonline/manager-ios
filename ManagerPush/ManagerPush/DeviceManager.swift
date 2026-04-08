@@ -1,4 +1,6 @@
 import Foundation
+import Combine
+import UIKit
 
 @MainActor
 class DeviceManager: ObservableObject {
