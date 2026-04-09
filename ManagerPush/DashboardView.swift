@@ -252,8 +252,6 @@ struct DashboardView: View {
 
             if vm.isLoading {
                 ProgressView()
-                    .tint(.mgAccent)
-                    .scaleEffect(1.2)
                     .padding(.top, vm.summary == nil ? 60 : 0)
             }
         }
