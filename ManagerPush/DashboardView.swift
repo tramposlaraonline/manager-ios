@@ -27,7 +27,7 @@ struct DashboardView: View {
         List {
             // Toolbar: period + filters
             toolbarSection
-                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 6, trailing: 16))
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 14, trailing: 16))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
 
@@ -128,9 +128,15 @@ struct DashboardView: View {
     private func filterChip(label: String, value: String, items: [MenuItem]) -> some View {
         Menu {
             ForEach(items, id: \.id) { item in
-                Button(item.name) {
+                Button(action: {
                     item.action()
                     Task { await vm.loadSummary() }
+                }) {
+                    if item.name == value {
+                        Label(item.name, systemImage: "checkmark")
+                    } else {
+                        Text(item.name)
+                    }
                 }
             }
         } label: {
@@ -160,7 +166,8 @@ struct DashboardView: View {
     private var metricsContent: some View {
         ZStack {
             if let s = vm.summary {
-                VStack(spacing: 10) {
+                let w = UIScreen.main.bounds.width - 32 // 16px padding each side
+                VStack(spacing: 12) {
                     MetricCard(label: "Gastos com Anúncios", value: s.spendFormatted)
                     MetricCard(label: "Faturamento Bruto", value: s.grossRevenueFormatted)
                     MetricCard(label: "Faturamento Líquido", value: s.netRevenueFormatted)
@@ -176,16 +183,16 @@ struct DashboardView: View {
 
                     HStack(spacing: 10) {
                         MetricCard(label: "Vendas Reembolsadas", value: s.refundedRevenueFormatted)
-                            .frame(maxWidth: .infinity)
+                            .frame(width: (w - 10) * 0.7)
                         MetricCard(label: "Reembolso", value: s.refundRateFormatted)
-                            .frame(maxWidth: .infinity)
+                            .frame(width: (w - 10) * 0.3)
                     }
 
                     HStack(spacing: 10) {
                         MetricCard(label: "Vendas Chargeback", value: s.chargedbackRevenueFormatted)
-                            .frame(maxWidth: .infinity)
+                            .frame(width: (w - 10) * 0.7)
                         MetricCard(label: "Chargeback", value: s.chargebackRateFormatted)
-                            .frame(maxWidth: .infinity)
+                            .frame(width: (w - 10) * 0.3)
                     }
 
                     MetricCard(label: "Vendas Devolvidas", value: s.returnedRevenueFormatted)
