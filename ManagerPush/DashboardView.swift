@@ -174,20 +174,18 @@ struct DashboardView: View {
 
                     MetricCard(label: "Vendas Pendentes", value: s.pendingRevenueFormatted)
 
-                    // Reembolsadas 70% | Reembolso % 30%
                     HStack(spacing: 10) {
                         MetricCard(label: "Vendas Reembolsadas", value: s.refundedRevenueFormatted)
-                            .layoutPriority(7)
+                            .frame(maxWidth: .infinity)
                         MetricCard(label: "Reembolso", value: s.refundRateFormatted)
-                            .layoutPriority(3)
+                            .frame(maxWidth: .infinity)
                     }
 
-                    // Chargeback 70% | Chargeback % 30%
                     HStack(spacing: 10) {
                         MetricCard(label: "Vendas Chargeback", value: s.chargedbackRevenueFormatted)
-                            .layoutPriority(7)
+                            .frame(maxWidth: .infinity)
                         MetricCard(label: "Chargeback", value: s.chargebackRateFormatted)
-                            .layoutPriority(3)
+                            .frame(maxWidth: .infinity)
                     }
 
                     MetricCard(label: "Vendas Devolvidas", value: s.returnedRevenueFormatted)
