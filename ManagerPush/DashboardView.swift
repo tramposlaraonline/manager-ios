@@ -212,12 +212,12 @@ struct DashboardView: View {
                         MetricCard(label: "Chargeback", value: s.chargebackRateFormatted)
                             .frame(width: (w - 10) * 0.3)
                     }
+                    MetricCard(label: "Vendas Devolvidas", value: s.returnedRevenueFormatted)
+
                     HStack(spacing: 10) {
                         MetricCard(label: "Custos de Produto", value: s.productCostsFormatted)
                         MetricCard(label: "Despesas Adicionais", value: s.additionalExpensesFormatted)
                     }
-
-                    MetricCard(label: "Vendas Devolvidas", value: s.returnedRevenueFormatted)
 
                     HStack(spacing: 10) {
                         MetricCard(label: "ARPU", value: s.arpuFormatted, valueSize: 17)
