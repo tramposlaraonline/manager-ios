@@ -463,13 +463,25 @@ class DashboardViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var lastUpdated: String?
 
-    // Desktop-matching status text logic:
-    // - "carregando..." while loading (non-custom only)
-    // - "atualizado às HH:mm:ss" after load (non-custom only)
-    // - empty for custom periods
     var statusText: String {
-        if isCustomPeriod { return "" }
         if isLoading { return "carregando..." }
+        if isCustomPeriod {
+            // Custom period: "exibindo dados de hoje até HH:MM" or "exibindo dados de DD/MM HH:MM até DD/MM HH:MM"
+            let brt = TimeZone(secondsFromGMT: -3 * 3600)!
+            let iso = ISO8601DateFormatter(); iso.timeZone = TimeZone(secondsFromGMT: 0)
+            guard let fromD = iso.date(from: customFrom), let toD = iso.date(from: customTo) else { return "" }
+            var cal = Calendar.current; cal.timeZone = brt
+            let now = Date()
+            let fromIsToday = cal.isDate(fromD, inSameDayAs: now)
+            let toIsToday = cal.isDate(toD, inSameDayAs: now)
+            let timeFmt = DateFormatter(); timeFmt.dateFormat = "HH:mm"; timeFmt.timeZone = brt
+            let dateFmt = DateFormatter(); dateFmt.dateFormat = "dd/MM HH:mm"; dateFmt.timeZone = brt
+            if fromIsToday && toIsToday {
+                return "exibindo dados de hoje até \(timeFmt.string(from: toD))"
+            } else {
+                return "exibindo dados de \(dateFmt.string(from: fromD)) até \(dateFmt.string(from: toD))"
+            }
+        }
         if let ts = lastUpdated { return "atualizado às \(ts)" }
         return ""
     }
