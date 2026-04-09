@@ -43,11 +43,13 @@ struct DashboardView: View {
         }
         .background(Color.mgBg)
         .onAppear {
+            vm.setupAutoRefresh()
             if dm.isPaired && !dm.deviceToken.isEmpty {
                 vm.deviceToken = dm.deviceToken
                 Task {
                     await vm.loadFilters()
                     await vm.loadSummary()
+                    if vm.periodIncludesToday { vm.startAutoRefresh() }
                 }
             }
         }
@@ -78,6 +80,8 @@ struct DashboardView: View {
                             vm.selectedPeriod = period
                             vm.isCustomPeriod = false
                             Task { await vm.loadSummary() }
+                            // Start/stop auto-refresh based on period
+                            if vm.periodIncludesToday { vm.startAutoRefresh() } else { vm.stopAutoRefresh() }
                         }) {
                             if vm.selectedPeriod == period && !vm.isCustomPeriod {
                                 Label(period.label, systemImage: "checkmark")
@@ -240,19 +244,51 @@ struct CustomDateSheet: View {
     @Binding var isPresented: Bool
     @State private var fromDate = Date()
     @State private var toDate = Date()
+    @State private var validationError: String?
 
     private let brt = TimeZone(secondsFromGMT: -3 * 3600)!
+
+    private var isToDateToday: Bool {
+        var calBRT = Calendar.current
+        calBRT.timeZone = brt
+        return calBRT.isDateInToday(toDate)
+    }
 
     var body: some View {
         NavigationView {
             Form {
                 Section {
-                    DatePicker("De", selection: $fromDate, displayedComponents: [.date, .hourAndMinute])
+                    DatePicker("De", selection: $fromDate, in: ...Date(), displayedComponents: [.date, .hourAndMinute])
                         .environment(\.timeZone, brt)
-                    DatePicker("Até", selection: $toDate, displayedComponents: [.date, .hourAndMinute])
+                    DatePicker("Até", selection: $toDate, in: ...Date(), displayedComponents: [.date, .hourAndMinute])
                         .environment(\.timeZone, brt)
+                        .onChange(of: toDate) { newVal in
+                            // Auto-set end time: if today → current time, else → 23:59
+                            var calBRT = Calendar.current
+                            calBRT.timeZone = brt
+                            if calBRT.isDateInToday(newVal) {
+                                let now = Date()
+                                let h = calBRT.component(.hour, from: now)
+                                let m = calBRT.component(.minute, from: now)
+                                var comps = calBRT.dateComponents([.year, .month, .day], from: newVal)
+                                comps.hour = h; comps.minute = m; comps.second = 0
+                                if let adjusted = calBRT.date(from: comps) { toDate = adjusted }
+                            } else {
+                                var comps = calBRT.dateComponents([.year, .month, .day], from: newVal)
+                                comps.hour = 23; comps.minute = 59; comps.second = 59
+                                if let adjusted = calBRT.date(from: comps) { toDate = adjusted }
+                            }
+                        }
                 } header: {
                     Text("Período personalizado")
+                }
+
+                if let err = validationError {
+                    Section {
+                        Text(err)
+                            .font(.system(size: 13))
+                            .foregroundColor(.mgRed)
+                    }
                 }
             }
             .navigationTitle("Período")
@@ -263,6 +299,12 @@ struct CustomDateSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Aplicar") {
+                        // Validation: from must be before to
+                        if fromDate >= toDate {
+                            validationError = "A data final deve ser posterior à data inicial."
+                            return
+                        }
+                        validationError = nil
                         let fmt = ISO8601DateFormatter()
                         fmt.timeZone = TimeZone(secondsFromGMT: 0)
                         vm.customFrom = fmt.string(from: fromDate)
@@ -270,6 +312,8 @@ struct CustomDateSheet: View {
                         vm.isCustomPeriod = true
                         isPresented = false
                         Task { await vm.loadSummary() }
+                        // Custom period including today → auto-refresh, else stop
+                        if isToDateToday { vm.startAutoRefresh() } else { vm.stopAutoRefresh() }
                     }
                 }
             }
@@ -279,6 +323,7 @@ struct CustomDateSheet: View {
             var calBRT = Calendar.current
             calBRT.timeZone = brt
             fromDate = calBRT.startOfDay(for: Date())
+            // Default end: now
             toDate = Date()
         }
     }
@@ -418,6 +463,48 @@ class DashboardViewModel: ObservableObject {
     @Published var summary: DashboardSummary?
     @Published var isLoading = false
     @Published var lastUpdated: String?
+
+    private var autoRefreshTimer: Timer?
+    private var backgroundedAt: Date?
+    private var cancellables = Set<AnyCancellable>()
+
+    // Auto-refresh periods (those that include today)
+    var periodIncludesToday: Bool {
+        if isCustomPeriod { return true } // assume custom may include today
+        return [.today, .week, .month, .all].contains(selectedPeriod)
+    }
+
+    func setupAutoRefresh() {
+        // Observe app going to background/foreground
+        NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)
+            .sink { [weak self] _ in self?.backgroundedAt = Date(); self?.stopAutoRefresh() }
+            .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)
+            .sink { [weak self] _ in
+                guard let self = self else { return }
+                let away = self.backgroundedAt.map { Date().timeIntervalSince($0) } ?? 0
+                self.backgroundedAt = nil
+                if away >= 60 {
+                    Task { await self.loadSummary() }
+                }
+                if self.periodIncludesToday { self.startAutoRefresh() }
+            }
+            .store(in: &cancellables)
+    }
+
+    func startAutoRefresh() {
+        stopAutoRefresh()
+        autoRefreshTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            guard let self = self, !self.isLoading else { return }
+            Task { @MainActor in await self.loadSummary() }
+        }
+    }
+
+    func stopAutoRefresh() {
+        autoRefreshTimer?.invalidate()
+        autoRefreshTimer = nil
+    }
 
     var periodDisplayLabel: String {
         if isCustomPeriod {
