@@ -135,131 +135,131 @@ struct SettingsView: View {
     @StateObject private var dm = DeviceManager.shared
 
     var body: some View {
-        List {
-            Section {
-                Toggle("Vendas pendentes", isOn: $dm.notifyPending)
-                    .onChange(of: dm.notifyPending) { val in
-                        Task { await dm.updatePreference("notifyPending", value: val) }
-                    }
-                Toggle("Vendas aprovadas", isOn: $dm.notifyApproved)
-                    .onChange(of: dm.notifyApproved) { val in
-                        Task { await dm.updatePreference("notifyApproved", value: val) }
-                    }
-                Toggle("Vendas recusadas", isOn: $dm.notifyRefused)
-                    .onChange(of: dm.notifyRefused) { val in
-                        Task { await dm.updatePreference("notifyRefused", value: val) }
-                    }
-                Toggle("Vendas reembolsadas", isOn: $dm.notifyRefunded)
-                    .onChange(of: dm.notifyRefunded) { val in
-                        Task { await dm.updatePreference("notifyRefunded", value: val) }
-                    }
-            } header: {
-                Text("Notificações de Venda")
-            }
-
-            Section {
-                Picker("Valor da venda", selection: $dm.valueDisplay) {
-                    Text("Líquido").tag("net")
-                    Text("Bruto").tag("gross")
-                    Text("Esconder").tag("hidden")
+        ScrollView {
+            VStack(spacing: 16) {
+                // Notifications section
+                settingsCard {
+                    settingsHeader("Notificações de Venda", icon: "bell.fill")
+                    settingsToggle("Vendas pendentes", isOn: $dm.notifyPending, key: "notifyPending")
+                    settingsToggle("Vendas aprovadas", isOn: $dm.notifyApproved, key: "notifyApproved")
+                    settingsToggle("Vendas recusadas", isOn: $dm.notifyRefused, key: "notifyRefused")
+                    settingsToggle("Vendas reembolsadas", isOn: $dm.notifyRefunded, key: "notifyRefunded")
                 }
-                .onChange(of: dm.valueDisplay) { val in
-                    Task { await dm.updatePreference("valueDisplay", value: val) }
-                }
-                Toggle("Nome do produto", isOn: $dm.showProductName)
-                    .onChange(of: dm.showProductName) { val in
-                        Task { await dm.updatePreference("showProductName", value: val) }
-                    }
-                Toggle("Valor de utm_campaign", isOn: $dm.showCampaignName)
-                    .onChange(of: dm.showCampaignName) { val in
-                        Task { await dm.updatePreference("showCampaignName", value: val) }
-                    }
-            } header: {
-                Text("Formato da Notificação")
-            }
 
-            Section {
-                NotificationPreview(dm: dm)
-            } header: {
-                Text("Prévia")
-            }
-
-            Section {
-                Toggle("08:00", isOn: $dm.reportAt08)
-                    .onChange(of: dm.reportAt08) { val in
-                        Task { await dm.updatePreference("reportAt08", value: val) }
-                    }
-                Toggle("12:00", isOn: $dm.reportAt12)
-                    .onChange(of: dm.reportAt12) { val in
-                        Task { await dm.updatePreference("reportAt12", value: val) }
-                    }
-                Toggle("18:00", isOn: $dm.reportAt18)
-                    .onChange(of: dm.reportAt18) { val in
-                        Task { await dm.updatePreference("reportAt18", value: val) }
-                    }
-                Toggle("23:00", isOn: $dm.reportAt23)
-                    .onChange(of: dm.reportAt23) { val in
-                        Task { await dm.updatePreference("reportAt23", value: val) }
-                    }
-            } header: {
-                Text("Relatórios Agendados")
-            }
-
-            Section {
-                Button(role: .destructive) {
-                    dm.unpair()
-                } label: {
+                // Notification format
+                settingsCard {
+                    settingsHeader("Formato da Notificação", icon: "text.bubble.fill")
                     HStack {
+                        Text("Valor exibido").font(.system(size: 13)).foregroundColor(.mgText)
                         Spacer()
-                        Text("Parear novamente")
-                        Spacer()
+                        Picker("", selection: $dm.valueDisplay) {
+                            Text("Líquido").tag("net")
+                            Text("Bruto").tag("gross")
+                            Text("Esconder").tag("hidden")
+                        }
+                        .pickerStyle(.menu)
+                        .tint(.mgAccent)
+                        .onChange(of: dm.valueDisplay) { v in Task { await dm.updatePreference("valueDisplay", value: v) } }
                     }
+                    .padding(.horizontal, 16).padding(.vertical, 8)
+                    Divider().padding(.leading, 16)
+                    settingsToggle("Nome do produto", isOn: $dm.showProductName, key: "showProductName")
+                    settingsToggle("Campanha (utm_campaign)", isOn: $dm.showCampaignName, key: "showCampaignName")
+                }
+
+                // Reports
+                settingsCard {
+                    settingsHeader("Relatórios Agendados", icon: "clock.fill")
+                    Text("Receba um resumo de vendas nos horários selecionados")
+                        .font(.system(size: 11)).foregroundColor(.mgText3)
+                        .padding(.horizontal, 16).padding(.bottom, 4)
+                    settingsToggle("08:00", isOn: $dm.reportAt08, key: "reportAt08")
+                    settingsToggle("12:00", isOn: $dm.reportAt12, key: "reportAt12")
+                    settingsToggle("18:00", isOn: $dm.reportAt18, key: "reportAt18")
+                    settingsToggle("23:00", isOn: $dm.reportAt23, key: "reportAt23")
+                }
+
+                // Device info
+                settingsCard {
+                    settingsHeader("Dispositivo", icon: "iphone")
+                    infoRow("Nome", UIDevice.current.name)
+                    infoRow("Ambiente", DeviceManager.apnsEnvironment == "production" ? "Produção" : "Sandbox")
+                    infoRow("Versão", Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")
+                }
+
+                // Re-pair
+                Button(action: { dm.unpair() }) {
+                    HStack {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 13))
+                        Text("Parear novamente")
+                            .font(.system(size: 13, weight: .medium))
+                    }
+                    .foregroundColor(.mgRed)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.mgCard)
+                    .clipShape(RoundedRectangle(cornerRadius: 9))
+                    .overlay(RoundedRectangle(cornerRadius: 9).stroke(Color.mgRed.opacity(0.3), lineWidth: 1))
                 }
             }
+            .padding(16)
         }
+        .background(Color.mgBg)
         .navigationTitle("Ajustes")
-        .onAppear {
-            Task { await dm.fetchPreferences() }
-        }
+        .onAppear { Task { await dm.fetchPreferences() } }
     }
-}
 
-// MARK: - Notification Preview
+    // MARK: - Settings Components
 
-struct NotificationPreview: View {
-    @ObservedObject var dm: DeviceManager
+    private func settingsCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            content()
+        }
+        .background(Color.mgCard)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.mgBorder, lineWidth: 1))
+    }
 
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "bell.fill")
-                .font(.title2)
+    private func settingsHeader(_ title: String, icon: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 12))
                 .foregroundColor(.mgAccent)
-                .frame(width: 40, height: 40)
-                .background(Color(.systemGray5))
-                .cornerRadius(8)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Venda aprovada!")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                Text(previewBody)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .lineLimit(2)
-            }
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.mgText)
         }
-        .padding(.vertical, 4)
+        .padding(.horizontal, 16)
+        .padding(.top, 14)
+        .padding(.bottom, 8)
     }
 
-    var previewBody: String {
-        var parts: [String] = []
-        if dm.valueDisplay == "net" {
-            parts.append("Valor líquido: R$ 16,77")
-        } else if dm.valueDisplay == "gross" {
-            parts.append("Valor bruto: R$ 17,81")
+    private func settingsToggle(_ label: String, isOn: Binding<Bool>, key: String) -> some View {
+        VStack(spacing: 0) {
+            Toggle(isOn: isOn) {
+                Text(label).font(.system(size: 13)).foregroundColor(.mgText)
+            }
+            .tint(.mgAccent)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .onChange(of: isOn.wrappedValue) { val in
+                Task { await dm.updatePreference(key, value: val) }
+            }
+            Divider().padding(.leading, 16)
         }
-        if dm.showProductName { parts.append("Taxa de validação") }
-        if dm.showCampaignName { parts.append("SITE ABO - 2/3") }
-        return parts.isEmpty ? "Notificação de venda" : parts.joined(separator: " | ")
+    }
+
+    private func infoRow(_ label: String, _ value: String) -> some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text(label).font(.system(size: 13)).foregroundColor(.mgText)
+                Spacer()
+                Text(value).font(.system(size: 12, design: .monospaced)).foregroundColor(.mgText3)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            Divider().padding(.leading, 16)
+        }
     }
 }
