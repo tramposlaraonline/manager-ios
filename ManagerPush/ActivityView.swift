@@ -71,47 +71,9 @@ struct ActivityView: View {
     }
 
     private var activityStatusBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 0) {
-                sChip("Todas", "all", nil)
-                sDot
-                sChip("Aprovadas", "APPROVED", vm.statusCounts["APPROVED"])
-                sDot
-                sChip("Pendentes", "PENDING", vm.statusCounts["PENDING"])
-                sDot
-                sChip("Recusadas", "REFUSED", vm.statusCounts["REFUSED"])
-                sDot
-                sChip("Reembolsos", "REFUNDED", vm.statusCounts["REFUNDED"])
-                sDot
-                sChip("Chargeback", "CHARGEDBACK", vm.statusCounts["CHARGEDBACK"])
-            }
+        ActivitySegmentedFilter(vm: vm)
             .padding(.horizontal, 16)
-        }
-        .padding(.bottom, 6)
-    }
-
-    private var sDot: some View {
-        Text("·").font(.system(size: 14)).foregroundColor(.mgBorder).padding(.horizontal, 2)
-    }
-
-    private func sChip(_ label: String, _ filter: String, _ count: Int?) -> some View {
-        let active = vm.selectedFilter == filter
-        return Button(action: {
-            vm.selectedFilter = filter
-            Task { await vm.loadOrders(reset: true) }
-        }) {
-            HStack(spacing: 3) {
-                Text(label)
-                    .font(.system(size: 11, weight: active ? .semibold : .regular))
-                if let c = count, c > 0 {
-                    Text("\(c)")
-                        .font(.system(size: 9, weight: .bold, design: .monospaced))
-                        .foregroundColor(active ? .mgAccent : .mgText3)
-                }
-            }
-            .foregroundColor(active ? .mgText : .mgText3)
-        }
-        .buttonStyle(.plain)
+            .padding(.bottom, 6)
     }
 
     private var activityFeed: some View {
@@ -246,6 +208,103 @@ struct ActivityFilterRow: View {
             }
             .padding(.horizontal, 12).frame(maxWidth: .infinity)
         }
+    }
+}
+
+// MARK: - Segmented Status Filter
+
+struct ActivitySegmentedFilter: View {
+    @ObservedObject var vm: ActivityViewModel
+
+    // "Outras" combines refused + refunded + chargedback
+    private var othersCount: Int {
+        (vm.statusCounts["REFUSED"] ?? 0) + (vm.statusCounts["REFUNDED"] ?? 0) + (vm.statusCounts["CHARGEDBACK"] ?? 0)
+    }
+
+    private var isOthersActive: Bool {
+        ["REFUSED", "REFUNDED", "CHARGEDBACK"].contains(vm.selectedFilter)
+    }
+
+    var body: some View {
+        HStack(spacing: 2) {
+            segBtn("Todas", active: vm.selectedFilter == "all", count: nil) {
+                vm.selectedFilter = "all"
+                Task { await vm.loadOrders(reset: true) }
+            }
+            segBtn("Aprovadas", active: vm.selectedFilter == "APPROVED", count: vm.statusCounts["APPROVED"]) {
+                vm.selectedFilter = "APPROVED"
+                Task { await vm.loadOrders(reset: true) }
+            }
+            segBtn("Pendentes", active: vm.selectedFilter == "PENDING", count: vm.statusCounts["PENDING"]) {
+                vm.selectedFilter = "PENDING"
+                Task { await vm.loadOrders(reset: true) }
+            }
+
+            // "Outras" as a Menu
+            Menu {
+                Button(action: { vm.selectedFilter = "REFUSED"; Task { await vm.loadOrders(reset: true) } }) {
+                    if vm.selectedFilter == "REFUSED" { Label("Recusadas (\(vm.statusCounts["REFUSED"] ?? 0))", systemImage: "checkmark") }
+                    else { Text("Recusadas (\(vm.statusCounts["REFUSED"] ?? 0))") }
+                }
+                Button(action: { vm.selectedFilter = "REFUNDED"; Task { await vm.loadOrders(reset: true) } }) {
+                    if vm.selectedFilter == "REFUNDED" { Label("Reembolsadas (\(vm.statusCounts["REFUNDED"] ?? 0))", systemImage: "checkmark") }
+                    else { Text("Reembolsadas (\(vm.statusCounts["REFUNDED"] ?? 0))") }
+                }
+                Button(action: { vm.selectedFilter = "CHARGEDBACK"; Task { await vm.loadOrders(reset: true) } }) {
+                    if vm.selectedFilter == "CHARGEDBACK" { Label("Chargeback (\(vm.statusCounts["CHARGEDBACK"] ?? 0))", systemImage: "checkmark") }
+                    else { Text("Chargeback (\(vm.statusCounts["CHARGEDBACK"] ?? 0))") }
+                }
+            } label: {
+                HStack(spacing: 2) {
+                    Text(isOthersActive ? othersActiveLabel : "Outras")
+                        .font(.system(size: 10, weight: isOthersActive ? .semibold : .medium))
+                    if othersCount > 0 {
+                        Text("\(othersCount)")
+                            .font(.system(size: 8, weight: .bold, design: .monospaced))
+                            .opacity(0.7)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 7)
+                .foregroundColor(isOthersActive ? .white : .mgText3)
+                .background(isOthersActive ? Color.mgAccent : Color.clear)
+                .cornerRadius(6)
+            }
+        }
+        .padding(3)
+        .background(Color.mgCard)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.mgBorder, lineWidth: 1))
+    }
+
+    private var othersActiveLabel: String {
+        switch vm.selectedFilter {
+        case "REFUSED": return "Recusadas"
+        case "REFUNDED": return "Reembolsos"
+        case "CHARGEDBACK": return "Chargeback"
+        default: return "Outras"
+        }
+    }
+
+    private func segBtn(_ label: String, active: Bool, count: Int?, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 2) {
+                Text(label)
+                    .font(.system(size: 10, weight: active ? .semibold : .medium))
+                if let c = count, c > 0 {
+                    Text("\(c)")
+                        .font(.system(size: 8, weight: .bold, design: .monospaced))
+                        .opacity(0.7)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 7)
+            .foregroundColor(active ? .white : .mgText3)
+            .background(active ? Color.mgAccent : Color.clear)
+            .cornerRadius(6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 
