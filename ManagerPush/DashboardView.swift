@@ -212,9 +212,9 @@ struct DashboardView: View {
                     MetricCard(label: "Lucro", value: s.profitFormatted, valueColor: s.profitColor)
 
                     HStack(spacing: 10) {
-                        MetricCard(label: "ROAS", value: s.roasFormatted, valueColor: s.roasColor, valueSize: 19)
-                        MetricCard(label: "ROI", value: s.roiFormatted, valueColor: s.roiColor, valueSize: 19)
-                        MetricCard(label: "Margem", value: s.marginFormatted, valueColor: s.marginColor, valueSize: 19)
+                        MetricCard(label: "ROAS", value: s.roasFormatted, valueColor: s.roasColor)
+                        MetricCard(label: "ROI", value: s.roiFormatted, valueColor: s.roiColor)
+                        MetricCard(label: "Margem", value: s.marginFormatted, valueColor: s.marginColor)
                     }
 
                     MetricCard(label: "Vendas Pendentes", value: s.pendingRevenueFormatted)
@@ -239,24 +239,24 @@ struct DashboardView: View {
                     }
 
                     HStack(spacing: 10) {
-                        MetricCard(label: "ARPU", value: s.arpuFormatted, valueSize: 17)
-                        MetricCard(label: "CPA", value: s.cpaFormatted, valueSize: 17)
+                        MetricCard(label: "ARPU", value: s.arpuFormatted)
+                        MetricCard(label: "CPA", value: s.cpaFormatted)
                     }
                     HStack(spacing: 10) {
-                        MetricCard(label: "Leads", value: s.leadsFormatted, valueSize: 17)
-                        MetricCard(label: "Custo por Lead", value: s.costPerLeadFormatted, valueSize: 17)
+                        MetricCard(label: "Leads", value: s.leadsFormatted)
+                        MetricCard(label: "Custo por Lead", value: s.costPerLeadFormatted)
                     }
                     HStack(spacing: 10) {
-                        MetricCard(label: "Imp. sobre Vendas", value: s.salesTaxFormatted, valueSize: 17)
-                        MetricCard(label: "Imp. Total", value: s.totalTaxFormatted, valueSize: 17)
+                        MetricCard(label: "Imp. sobre Vendas", value: s.salesTaxFormatted)
+                        MetricCard(label: "Imp. Total", value: s.totalTaxFormatted)
                     }
                     HStack(spacing: 10) {
-                        MetricCard(label: "Imp. Meta Ads", value: s.metaAdsTaxFormatted, valueSize: 17)
-                        MetricCard(label: "Taxas", value: s.feesFormatted, valueSize: 17)
+                        MetricCard(label: "Imp. Meta Ads", value: s.metaAdsTaxFormatted)
+                        MetricCard(label: "Taxas", value: s.feesFormatted)
                     }
                     HStack(spacing: 10) {
-                        MetricCard(label: "Conversas", value: s.conversationsFormatted, valueSize: 17)
-                        MetricCard(label: "Custo por Conversa", value: s.costPerConversationFormatted, valueSize: 17)
+                        MetricCard(label: "Conversas", value: s.conversationsFormatted)
+                        MetricCard(label: "Custo por Conversa", value: s.costPerConversationFormatted)
                     }
                 }
                 .opacity(vm.isLoading ? 0.4 : 1.0)
@@ -362,7 +362,6 @@ struct MetricCard: View {
     let label: String
     let value: String
     var valueColor: Color = .mgText
-    var valueSize: CGFloat = 22
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -371,25 +370,26 @@ struct MetricCard: View {
                 .foregroundColor(.mgText2)
                 .tracking(1)
             Text(value)
-                .font(.system(size: valueSize, weight: .bold, design: .monospaced))
+                .font(.system(size: 18, weight: .bold, design: .monospaced))
                 .foregroundColor(valueColor)
                 .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .minimumScaleFactor(0.6)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
-        .background(
-            ZStack(alignment: .top) {
-                RoundedRectangle(cornerRadius: 9).fill(Color.mgCard)
-                RoundedRectangle(cornerRadius: 9).stroke(Color.mgBorder, lineWidth: 1)
-                LinearGradient(
-                    gradient: Gradient(colors: [Color.mgAccent.opacity(0.6), Color.clear]),
-                    startPoint: .leading, endPoint: .trailing
-                )
-                .frame(height: 2)
-                .clipShape(RoundedRectangle(cornerRadius: 9))
-            }
+        .background(Color.mgCard)
+        .clipShape(RoundedRectangle(cornerRadius: 9))
+        .overlay(
+            RoundedRectangle(cornerRadius: 9).stroke(Color.mgBorder, lineWidth: 1)
         )
+        .overlay(alignment: .top) {
+            LinearGradient(
+                colors: [Color.mgAccent.opacity(0.6), Color.clear],
+                startPoint: .leading, endPoint: .trailing
+            )
+            .frame(height: 2)
+            .clipShape(RoundedRectangle(cornerRadius: 9))
+        }
     }
 }
 
