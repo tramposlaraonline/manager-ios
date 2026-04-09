@@ -51,8 +51,17 @@ struct DashboardView: View {
         }
         .background(Color.mgBg)
         .onAppear {
-            if dm.isPaired {
+            if dm.isPaired && !dm.deviceToken.isEmpty {
                 vm.deviceToken = dm.deviceToken
+                Task {
+                    await vm.loadFilters()
+                    await vm.loadSummary()
+                }
+            }
+        }
+        .onReceive(dm.$deviceToken) { token in
+            if dm.isPaired && !token.isEmpty && vm.summary == nil {
+                vm.deviceToken = token
                 Task {
                     await vm.loadFilters()
                     await vm.loadSummary()
