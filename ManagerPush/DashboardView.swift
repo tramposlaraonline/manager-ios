@@ -608,37 +608,45 @@ struct DashboardSummary {
     let salesTax, totalTax, metaAdsTax, fees, productCosts, additionalExpenses: Int
     let conversations, costPerConversation: Int
 
+    // Parse number that may come as Int or Double from JSON
+    private static func intVal(_ v: Any?) -> Int {
+        if let i = v as? Int { return i }
+        if let d = v as? Double { return Int(d) }
+        return 0
+    }
+
     init(json: [String: Any]) {
-        spend = json["spend"] as? Int ?? 0
-        grossRevenue = json["grossRevenue"] as? Int ?? 0
-        netRevenue = json["netRevenue"] as? Int ?? 0
-        profit = json["profit"] as? Int ?? 0
+        let iv = DashboardSummary.intVal
+        spend = iv(json["spend"])
+        grossRevenue = iv(json["grossRevenue"])
+        netRevenue = iv(json["netRevenue"])
+        profit = iv(json["profit"])
         roas = json["roas"] as? Double ?? 0
         roi = json["roi"] as? Double ?? 0
         margin = json["margin"] as? Double ?? 0
-        pendingOrders = json["pendingOrders"] as? Int ?? 0
-        pendingRevenue = json["pendingRevenue"] as? Int ?? 0
-        approvedOrders = json["approvedOrders"] as? Int ?? 0
-        refundedOrders = json["refundedOrders"] as? Int ?? 0
-        refundedRevenue = json["refundedRevenue"] as? Int ?? 0
-        chargedbackOrders = json["chargedbackOrders"] as? Int ?? 0
-        chargedbackRevenue = json["chargedbackRevenue"] as? Int ?? 0
-        returnedRevenue = json["returnedRevenue"] as? Int ?? 0
-        totalOrders = json["totalOrders"] as? Int ?? 0
+        pendingOrders = iv(json["pendingOrders"])
+        pendingRevenue = iv(json["pendingRevenue"])
+        approvedOrders = iv(json["approvedOrders"])
+        refundedOrders = iv(json["refundedOrders"])
+        refundedRevenue = iv(json["refundedRevenue"])
+        chargedbackOrders = iv(json["chargedbackOrders"])
+        chargedbackRevenue = iv(json["chargedbackRevenue"])
+        returnedRevenue = iv(json["returnedRevenue"])
+        totalOrders = iv(json["totalOrders"])
         refundRate = json["refundRate"] as? Double ?? 0
         chargebackRate = json["chargebackRate"] as? Double ?? 0
-        arpu = json["arpu"] as? Int ?? 0
-        cpa = json["cpa"] as? Int ?? 0
-        leads = json["leads"] as? Int ?? 0
-        costPerLead = json["costPerLead"] as? Int ?? 0
-        salesTax = json["salesTax"] as? Int ?? 0
-        totalTax = json["totalTax"] as? Int ?? 0
-        metaAdsTax = json["metaAdsTax"] as? Int ?? 0
-        fees = json["fees"] as? Int ?? 0
-        productCosts = json["productCosts"] as? Int ?? 0
-        additionalExpenses = json["additionalExpenses"] as? Int ?? 0
-        conversations = json["conversations"] as? Int ?? 0
-        costPerConversation = json["costPerConversation"] as? Int ?? 0
+        arpu = iv(json["arpu"])
+        cpa = iv(json["cpa"])
+        leads = iv(json["leads"])
+        costPerLead = iv(json["costPerLead"])
+        salesTax = iv(json["salesTax"])
+        totalTax = iv(json["totalTax"])
+        metaAdsTax = iv(json["metaAdsTax"])
+        fees = iv(json["fees"])
+        productCosts = iv(json["productCosts"])
+        additionalExpenses = iv(json["additionalExpenses"])
+        conversations = iv(json["conversations"])
+        costPerConversation = iv(json["costPerConversation"])
     }
 
     private func fmtCurrency(_ cents: Int) -> String {
