@@ -12,78 +12,21 @@ struct ActivityView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Toolbar (same as Dashboard)
-            toolbarSection
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-                .padding(.bottom, 10)
-
-            // Status filters
-            statusFilters
-                .padding(.bottom, 8)
-
-            // Feed
-            List {
-                ForEach(vm.groupedOrders, id: \.date) { group in
-                    Section {
-                        ForEach(group.orders, id: \.id) { order in
-                            OrderCard(order: order)
-                                .onTapGesture { selectedOrder = order }
-                                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                                .listRowBackground(Color.clear)
-                                .listRowSeparator(.hidden)
-                        }
-                    } header: {
-                        Text(group.label)
-                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                            .foregroundColor(.mgText3)
-                            .textCase(.uppercase)
-                    }
-                }
-
-                if vm.orders.isEmpty && !vm.isLoading {
-                    VStack(spacing: 12) {
-                        Image(systemName: "tray")
-                            .font(.system(size: 36))
-                            .foregroundColor(.mgText3)
-                        Text("Nenhuma venda encontrada")
-                            .font(.system(size: 13))
-                            .foregroundColor(.mgText3)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 40)
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                }
-
-                if vm.isLoading {
-                    HStack { Spacer(); ProgressView(); Spacer() }
-                        .padding(.vertical, 20)
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                }
-            }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .refreshable { await vm.loadOrders() }
+            activityToolbar
+            activityStatusBar
+            activityFeed
         }
         .background(Color.mgBg)
         .onAppear {
             if dm.isPaired && !dm.deviceToken.isEmpty && vm.orders.isEmpty {
                 vm.deviceToken = dm.deviceToken
-                Task {
-                    await vm.loadFilters()
-                    await vm.loadOrders()
-                }
+                Task { await vm.loadFilters(); await vm.loadOrders() }
             }
         }
         .onReceive(dm.$deviceToken) { token in
             if dm.isPaired && !token.isEmpty && vm.orders.isEmpty {
                 vm.deviceToken = token
-                Task {
-                    await vm.loadFilters()
-                    await vm.loadOrders()
-                }
+                Task { await vm.loadFilters(); await vm.loadOrders() }
             }
         }
         .sheet(isPresented: $showCustomDate) {
@@ -94,55 +37,148 @@ struct ActivityView: View {
         }
     }
 
-    // MARK: - Toolbar (matching Dashboard)
+    // MARK: - Toolbar
 
-    private var toolbarSection: some View {
+    private var activityToolbar: some View {
         VStack(spacing: 0) {
-            VStack(spacing: 1) {
-                HStack(spacing: 1) {
-                    ForEach([DashboardPeriod.today, .yesterday, .week, .lastweek], id: \.self) { p in
-                        actPeriodBtn(p.label, active: vm.selectedPeriod == p && !vm.isCustomPeriod) {
-                            vm.selectedPeriod = p; vm.isCustomPeriod = false
-                            Task { await vm.loadOrders() }
-                        }
-                    }
-                }
-                HStack(spacing: 1) {
-                    ForEach([DashboardPeriod.month, .lastmonth, .all], id: \.self) { p in
-                        actPeriodBtn(p.label, active: vm.selectedPeriod == p && !vm.isCustomPeriod) {
-                            vm.selectedPeriod = p; vm.isCustomPeriod = false
-                            Task { await vm.loadOrders() }
-                        }
-                    }
-                    actPeriodBtn(vm.isCustomPeriod ? vm.periodDisplayLabel : "Período...",
-                                 active: vm.isCustomPeriod) {
-                        showCustomDate = true
-                    }
-                }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.mgBorder, lineWidth: 1))
-            .padding(.bottom, 12)
-
+            ActivityPeriodGrid(vm: vm, showCustomDate: $showCustomDate)
+                .padding(.bottom, 12)
             Rectangle().fill(Color.mgBorder).frame(height: 1)
-
-            HStack(spacing: 0) {
-                filterChip(label: "Conta de Anúncio", value: vm.selectedAccountName, items: vm.accountMenuItems)
-                Rectangle().fill(Color.mgBorder).frame(width: 1, height: 32)
-                filterChip(label: "Produto", value: vm.selectedProductName, items: vm.productMenuItems)
-            }
-            .padding(.top, 10)
+            ActivityFilterRow(vm: vm)
+                .padding(.top, 10)
         }
         .padding(12)
         .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.mgCard)
+            RoundedRectangle(cornerRadius: 10).fill(Color.mgCard)
                 .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.mgBorder, lineWidth: 1))
         )
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
     }
 
-    private func actPeriodBtn(_ label: String, active: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+    // MARK: - Status Bar
+
+    private var activityStatusBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ActivityStatusTab(label: "Todas", filter: "all", icon: "list.bullet", count: nil, isActive: vm.selectedFilter == "all") {
+                    vm.selectedFilter = "all"; Task { await vm.loadOrders() }
+                }
+                ActivityStatusTab(label: "Aprovadas", filter: "APPROVED", icon: "checkmark.circle", count: vm.statusCounts["APPROVED"], color: .mgGreen, isActive: vm.selectedFilter == "APPROVED") {
+                    vm.selectedFilter = "APPROVED"; Task { await vm.loadOrders() }
+                }
+                ActivityStatusTab(label: "Pendentes", filter: "PENDING", icon: "clock", count: vm.statusCounts["PENDING"], color: .mgAmber, isActive: vm.selectedFilter == "PENDING") {
+                    vm.selectedFilter = "PENDING"; Task { await vm.loadOrders() }
+                }
+                ActivityStatusTab(label: "Recusadas", filter: "REFUSED", icon: "xmark.circle", count: vm.statusCounts["REFUSED"], color: .mgRed, isActive: vm.selectedFilter == "REFUSED") {
+                    vm.selectedFilter = "REFUSED"; Task { await vm.loadOrders() }
+                }
+                ActivityStatusTab(label: "Reembolsadas", filter: "REFUNDED", icon: "arrow.uturn.left.circle", count: vm.statusCounts["REFUNDED"], color: .mgRed, isActive: vm.selectedFilter == "REFUNDED") {
+                    vm.selectedFilter = "REFUNDED"; Task { await vm.loadOrders() }
+                }
+                ActivityStatusTab(label: "Chargeback", filter: "CHARGEDBACK", icon: "exclamationmark.triangle", count: vm.statusCounts["CHARGEDBACK"], color: .mgRed, isActive: vm.selectedFilter == "CHARGEDBACK") {
+                    vm.selectedFilter = "CHARGEDBACK"; Task { await vm.loadOrders() }
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+        .padding(.bottom, 8)
+    }
+
+    // MARK: - Feed
+
+    private var activityFeed: some View {
+        List {
+            ForEach(vm.groupedOrders, id: \.date) { group in
+                Section {
+                    ForEach(group.orders, id: \.id) { order in
+                        OrderCard(order: order)
+                            .onTapGesture { selectedOrder = order }
+                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                    }
+                } header: {
+                    Text(group.label)
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .foregroundColor(.mgText3)
+                        .textCase(.uppercase)
+                }
+            }
+
+            if vm.orders.isEmpty && !vm.isLoading {
+                emptyState
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+            }
+
+            if vm.isLoading {
+                HStack { Spacer(); ProgressView(); Spacer() }
+                    .padding(.vertical, 20)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+            }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .refreshable { await vm.loadOrders() }
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "tray")
+                .font(.system(size: 36))
+                .foregroundColor(.mgText3)
+            Text("Nenhuma venda encontrada")
+                .font(.system(size: 13))
+                .foregroundColor(.mgText3)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 40)
+    }
+}
+
+// MARK: - Period Grid (extracted for compiler)
+
+struct ActivityPeriodGrid: View {
+    @ObservedObject var vm: ActivityViewModel
+    @Binding var showCustomDate: Bool
+
+    var body: some View {
+        VStack(spacing: 1) {
+            HStack(spacing: 1) {
+                pBtn("Hoje", .today)
+                pBtn("Ontem", .yesterday)
+                pBtn("Semana", .week)
+                pBtn("Sem. passada", .lastweek)
+            }
+            HStack(spacing: 1) {
+                pBtn("Mês", .month)
+                pBtn("Mês passado", .lastmonth)
+                pBtn("Tudo", .all)
+                Button(action: { showCustomDate = true }) {
+                    Text(vm.isCustomPeriod ? vm.periodDisplayLabel : "Período...")
+                        .font(.system(size: 11, weight: vm.isCustomPeriod ? .semibold : .medium))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 7)
+                        .foregroundColor(vm.isCustomPeriod ? .white : .mgText2)
+                        .background(vm.isCustomPeriod ? Color.mgAccent : Color.mgS2)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.mgBorder, lineWidth: 1))
+    }
+
+    private func pBtn(_ label: String, _ period: DashboardPeriod) -> some View {
+        let active = vm.selectedPeriod == period && !vm.isCustomPeriod
+        return Button(action: {
+            vm.selectedPeriod = period; vm.isCustomPeriod = false
+            Task { await vm.loadOrders() }
+        }) {
             Text(label)
                 .font(.system(size: 11, weight: active ? .semibold : .medium))
                 .frame(maxWidth: .infinity)
@@ -153,8 +189,22 @@ struct ActivityView: View {
         }
         .buttonStyle(.plain)
     }
+}
 
-    private func filterChip(label: String, value: String, items: [MenuItem]) -> some View {
+// MARK: - Filter Row (extracted)
+
+struct ActivityFilterRow: View {
+    @ObservedObject var vm: ActivityViewModel
+
+    var body: some View {
+        HStack(spacing: 0) {
+            chipMenu(label: "Conta de Anúncio", value: vm.selectedAccountName, items: vm.accountMenuItems)
+            Rectangle().fill(Color.mgBorder).frame(width: 1, height: 32)
+            chipMenu(label: "Produto", value: vm.selectedProductName, items: vm.productMenuItems)
+        }
+    }
+
+    private func chipMenu(label: String, value: String, items: [MenuItem]) -> some View {
         Menu {
             ForEach(items, id: \.id) { item in
                 Button(action: { item.action(); Task { await vm.loadOrders() } }) {
@@ -186,34 +236,25 @@ struct ActivityView: View {
             .frame(maxWidth: .infinity)
         }
     }
+}
 
-    // MARK: - Status Filters
+// MARK: - Status Tab Button (extracted)
 
-    private var statusFilters: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                statusTab("Todas", filter: "all", icon: "list.bullet", count: nil)
-                statusTab("Aprovadas", filter: "APPROVED", icon: "checkmark.circle", count: vm.statusCounts["APPROVED"], color: .mgGreen)
-                statusTab("Pendentes", filter: "PENDING", icon: "clock", count: vm.statusCounts["PENDING"], color: .mgAmber)
-                statusTab("Recusadas", filter: "REFUSED", icon: "xmark.circle", count: vm.statusCounts["REFUSED"], color: .mgRed)
-                statusTab("Reembolsadas", filter: "REFUNDED", icon: "arrow.uturn.left.circle", count: vm.statusCounts["REFUNDED"], color: .mgRed)
-                statusTab("Chargeback", filter: "CHARGEDBACK", icon: "exclamationmark.triangle", count: vm.statusCounts["CHARGEDBACK"], color: .mgRed)
-            }
-            .padding(.horizontal, 16)
-        }
-    }
+struct ActivityStatusTab: View {
+    let label: String
+    let filter: String
+    let icon: String
+    var count: Int?
+    var color: Color = .mgText2
+    let isActive: Bool
+    let action: () -> Void
 
-    private func statusTab(_ label: String, filter: String, icon: String, count: Int?, color: Color = .mgText2) -> some View {
-        Button(action: {
-            vm.selectedFilter = filter
-            Task { await vm.loadOrders() }
-        }) {
+    var body: some View {
+        Button(action: action) {
             VStack(spacing: 4) {
                 HStack(spacing: 4) {
-                    Image(systemName: icon)
-                        .font(.system(size: 10))
-                    Text(label)
-                        .font(.system(size: 10, weight: .medium))
+                    Image(systemName: icon).font(.system(size: 10))
+                    Text(label).font(.system(size: 10, weight: .medium))
                 }
                 if let c = count, c > 0 {
                     Text("\(c)")
@@ -222,13 +263,10 @@ struct ActivityView: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(vm.selectedFilter == filter ? Color.mgAccent : Color.mgCard)
-            .foregroundColor(vm.selectedFilter == filter ? .white : .mgText3)
+            .background(isActive ? Color.mgAccent : Color.mgCard)
+            .foregroundColor(isActive ? .white : .mgText3)
             .cornerRadius(8)
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(vm.selectedFilter == filter ? Color.clear : Color.mgBorder, lineWidth: 1)
-            )
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(isActive ? Color.clear : Color.mgBorder, lineWidth: 1))
         }
     }
 }
@@ -240,7 +278,6 @@ struct OrderCard: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            // Status icon (SF Symbol)
             ZStack {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(order.statusColor.opacity(0.12))
@@ -288,58 +325,109 @@ struct OrderDetailSheet: View {
     var body: some View {
         NavigationView {
             List {
-                Section {
-                    detailRow("Status", value: order.statusLabel, color: order.statusColor)
-                    detailRow("Valor bruto", value: order.valueFormatted)
-                    if order.netAmountCents > 0 {
-                        detailRow("Valor líquido", value: order.netValueFormatted)
-                    }
-                } header: { Text("Venda") }
-
-                Section {
-                    detailRow("Produto", value: order.productName.isEmpty ? "—" : order.productName)
-                    detailRow("Pagamento", value: order.paymentMethod.isEmpty ? "—" : order.paymentMethod.uppercased())
-                } header: { Text("Detalhes") }
-
-                Section {
-                    detailRow("Cliente", value: order.customerName.isEmpty ? "—" : order.customerName)
-                    detailRow("Email", value: order.customerEmail.isEmpty ? "—" : order.customerEmail)
-                } header: { Text("Cliente") }
-
-                Section {
-                    detailRow("Campanha", value: order.utmCampaign.isEmpty ? "—" : order.utmCampaign)
-                    detailRow("Fonte", value: order.utmSource.isEmpty ? "—" : order.utmSource)
-                    detailRow("Origem", value: order.src.isEmpty ? "—" : order.src)
-                } header: { Text("Atribuição") }
-
-                Section {
-                    detailRow("Criado em", value: order.fullDateFormatted)
-                    if let approved = order.approvedDateFormatted {
-                        detailRow("Aprovado em", value: approved)
-                    }
-                    detailRow("ID externo", value: order.externalOrderId.isEmpty ? "—" : order.externalOrderId)
-                } header: { Text("Informações") }
+                Section("Venda") {
+                    row("Status", order.statusLabel, order.statusColor)
+                    row("Valor bruto", order.valueFormatted)
+                    if order.netAmountCents > 0 { row("Valor líquido", order.netValueFormatted) }
+                }
+                Section("Detalhes") {
+                    row("Produto", order.productName.isEmpty ? "—" : order.productName)
+                    row("Pagamento", order.paymentMethod.isEmpty ? "—" : order.paymentMethod.uppercased())
+                }
+                Section("Cliente") {
+                    row("Cliente", order.customerName.isEmpty ? "—" : order.customerName)
+                    row("Email", order.customerEmail.isEmpty ? "—" : order.customerEmail)
+                }
+                Section("Atribuição") {
+                    row("Campanha", order.utmCampaign.isEmpty ? "—" : order.utmCampaign)
+                    row("Fonte", order.utmSource.isEmpty ? "—" : order.utmSource)
+                    row("Origem", order.src.isEmpty ? "—" : order.src)
+                }
+                Section("Informações") {
+                    row("Criado em", order.fullDateFormatted)
+                    if let a = order.approvedDateFormatted { row("Aprovado em", a) }
+                    row("ID externo", order.externalOrderId.isEmpty ? "—" : order.externalOrderId)
+                }
             }
             .navigationTitle("Detalhes da Venda")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Fechar") { dismiss() }
-                }
+                ToolbarItem(placement: .cancellationAction) { Button("Fechar") { dismiss() } }
             }
         }
     }
 
-    private func detailRow(_ label: String, value: String, color: Color = .primary) -> some View {
+    private func row(_ label: String, _ value: String, _ color: Color = .primary) -> some View {
         HStack {
-            Text(label)
-                .font(.system(size: 13))
-                .foregroundColor(.secondary)
+            Text(label).font(.system(size: 13)).foregroundColor(.secondary)
             Spacer()
-            Text(value)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(color)
-                .multilineTextAlignment(.trailing)
+            Text(value).font(.system(size: 13, weight: .medium)).foregroundColor(color).multilineTextAlignment(.trailing)
+        }
+    }
+}
+
+// MARK: - Activity Date Sheet
+
+struct ActivityDateSheet: View {
+    @ObservedObject var vm: ActivityViewModel
+    @Binding var isPresented: Bool
+    @State private var fromDate = Date()
+    @State private var toDate = Date()
+    @State private var lastToDay: Int = 0
+    @State private var validationError: String?
+
+    private let brt = TimeZone(secondsFromGMT: -3 * 3600)!
+
+    var body: some View {
+        NavigationView {
+            Form {
+                Section("Período personalizado") {
+                    DatePicker("De", selection: $fromDate, in: ...Date(), displayedComponents: [.date, .hourAndMinute])
+                        .environment(\.timeZone, brt)
+                    DatePicker("Até", selection: $toDate, in: ...Date(), displayedComponents: [.date, .hourAndMinute])
+                        .environment(\.timeZone, brt)
+                        .onChange(of: toDate) { newVal in
+                            var c = Calendar.current; c.timeZone = brt
+                            let nd = c.ordinality(of: .day, in: .era, for: newVal) ?? 0
+                            guard nd != lastToDay else { return }
+                            lastToDay = nd
+                            if c.isDateInToday(newVal) {
+                                let now = Date()
+                                var comps = c.dateComponents([.year, .month, .day], from: newVal)
+                                comps.hour = c.component(.hour, from: now)
+                                comps.minute = c.component(.minute, from: now); comps.second = 0
+                                if let a = c.date(from: comps) { toDate = a }
+                            } else {
+                                var comps = c.dateComponents([.year, .month, .day], from: newVal)
+                                comps.hour = 23; comps.minute = 59; comps.second = 59
+                                if let a = c.date(from: comps) { toDate = a }
+                            }
+                        }
+                }
+                if let err = validationError {
+                    Section { Text(err).font(.system(size: 13)).foregroundColor(.mgRed) }
+                }
+            }
+            .navigationTitle("Período")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { isPresented = false } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Aplicar") {
+                        if fromDate >= toDate { validationError = "Data final deve ser posterior à inicial."; return }
+                        let f = ISO8601DateFormatter(); f.timeZone = TimeZone(secondsFromGMT: 0)
+                        vm.customFrom = f.string(from: fromDate); vm.customTo = f.string(from: toDate)
+                        vm.isCustomPeriod = true; isPresented = false
+                        Task { await vm.loadOrders() }
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium])
+        .onAppear {
+            var c = Calendar.current; c.timeZone = brt
+            fromDate = c.startOfDay(for: Date()); toDate = Date()
+            lastToDay = c.ordinality(of: .day, in: .era, for: toDate) ?? 0
         }
     }
 }
@@ -354,6 +442,14 @@ class ActivityViewModel: ObservableObject {
     @Published var isCustomPeriod = false
     @Published var customFrom: String = ""
     @Published var customTo: String = ""
+    @Published var selectedProductId: String?
+    @Published var selectedAccountId: String?
+    @Published var products: [FilterItem] = []
+    @Published var accounts: [FilterItem] = []
+    @Published var orders: [ActivityOrder] = []
+    @Published var statusCounts: [String: Int] = [:]
+    @Published var selectedFilter: String = "all"
+    @Published var isLoading = false
 
     var periodDisplayLabel: String {
         if isCustomPeriod {
@@ -363,20 +459,10 @@ class ActivityViewModel: ObservableObject {
             if let f = iso.date(from: customFrom), let t = iso.date(from: customTo) {
                 return "\(fmt.string(from: f)) — \(fmt.string(from: t))"
             }
-            return "Personalizado"
+            return "Custom"
         }
         return selectedPeriod.label
     }
-
-    @Published var selectedProductId: String?
-    @Published var selectedAccountId: String?
-    @Published var products: [FilterItem] = []
-    @Published var accounts: [FilterItem] = []
-
-    @Published var orders: [ActivityOrder] = []
-    @Published var statusCounts: [String: Int] = [:]
-    @Published var selectedFilter: String = "all"
-    @Published var isLoading = false
 
     var selectedAccountName: String {
         if let id = selectedAccountId, let a = accounts.first(where: { $0.id == id }) { return a.name }
@@ -397,124 +483,67 @@ class ActivityViewModel: ObservableObject {
         return r
     }
 
+    var groupedOrders: [OrderGroup] {
+        let brt = TimeZone(secondsFromGMT: -3 * 3600)!
+        var cal = Calendar.current; cal.timeZone = brt
+        let todayStart = cal.startOfDay(for: Date())
+        let yesterdayStart = cal.date(byAdding: .day, value: -1, to: todayStart)!
+        let dateFmt = DateFormatter(); dateFmt.dateFormat = "dd/MM/yyyy"; dateFmt.timeZone = brt
+
+        var dict: [String: (label: String, orders: [ActivityOrder], sort: Date)] = [:]
+        for o in orders {
+            let key: String; let label: String
+            if o.date >= todayStart { key = "0_today"; label = "Hoje" }
+            else if o.date >= yesterdayStart { key = "1_yesterday"; label = "Ontem" }
+            else { let d = dateFmt.string(from: o.date); key = "2_\(d)"; label = d }
+            if dict[key] == nil { dict[key] = (label, [], o.date) }
+            dict[key]!.orders.append(o)
+        }
+        return dict.sorted { $0.key < $1.key }
+            .map { OrderGroup(date: $0.key, label: $0.value.label, orders: $0.value.orders) }
+    }
+
     private let baseURL = DeviceManager.shared.baseURL
 
     func loadFilters() async {
-        guard let url1 = URL(string: "\(baseURL)/dashboard/products"),
-              let url2 = URL(string: "\(baseURL)/dashboard/accounts") else { return }
-        var r1 = URLRequest(url: url1); r1.setValue(deviceToken, forHTTPHeaderField: "X-Device-Token")
-        var r2 = URLRequest(url: url2); r2.setValue(deviceToken, forHTTPHeaderField: "X-Device-Token")
-        if let (d1, _) = try? await URLSession.shared.data(for: r1),
-           let items = try? JSONDecoder().decode([FilterItem].self, from: d1) { products = items }
-        if let (d2, _) = try? await URLSession.shared.data(for: r2),
-           let items = try? JSONDecoder().decode([FilterItem].self, from: d2) { accounts = items }
+        guard let u1 = URL(string: "\(baseURL)/dashboard/products"),
+              let u2 = URL(string: "\(baseURL)/dashboard/accounts") else { return }
+        var r1 = URLRequest(url: u1); r1.setValue(deviceToken, forHTTPHeaderField: "X-Device-Token")
+        var r2 = URLRequest(url: u2); r2.setValue(deviceToken, forHTTPHeaderField: "X-Device-Token")
+        if let (d, _) = try? await URLSession.shared.data(for: r1),
+           let i = try? JSONDecoder().decode([FilterItem].self, from: d) { products = i }
+        if let (d, _) = try? await URLSession.shared.data(for: r2),
+           let i = try? JSONDecoder().decode([FilterItem].self, from: d) { accounts = i }
     }
 
     func loadOrders() async {
         isLoading = true
-
         let from: String; let to: String
         if isCustomPeriod { from = customFrom; to = customTo }
         else { let r = selectedPeriod.dateRange; from = r.from; to = r.to }
 
-        var urlString = "\(baseURL)/dashboard/orders?limit=50&from=\(from)&to=\(to)"
-        if selectedFilter != "all" { urlString += "&status=\(selectedFilter)" }
-        if let pid = selectedProductId { urlString += "&productIds=\(pid)" }
+        var url = "\(baseURL)/dashboard/orders?limit=50&from=\(from)&to=\(to)"
+        if selectedFilter != "all" { url += "&status=\(selectedFilter)" }
+        if let pid = selectedProductId { url += "&productIds=\(pid)" }
 
-        guard let url = URL(string: urlString) else { isLoading = false; return }
-        var req = URLRequest(url: url)
-        req.setValue(deviceToken, forHTTPHeaderField: "X-Device-Token")
+        guard let u = URL(string: url) else { isLoading = false; return }
+        var req = URLRequest(url: u); req.setValue(deviceToken, forHTTPHeaderField: "X-Device-Token")
 
-        guard let (data, response) = try? await URLSession.shared.data(for: req),
-              (response as? HTTPURLResponse)?.statusCode == 200,
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              (resp as? HTTPURLResponse)?.statusCode == 200,
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             isLoading = false; return
         }
-
-        if let ordersJson = json["orders"] as? [[String: Any]] {
-            orders = ordersJson.compactMap { ActivityOrder(json: $0) }
-        }
-        if let counts = json["statusCounts"] as? [String: Int] {
-            statusCounts = counts
-        }
+        if let arr = json["orders"] as? [[String: Any]] { orders = arr.compactMap { ActivityOrder(json: $0) } }
+        if let c = json["statusCounts"] as? [String: Int] { statusCounts = c }
         isLoading = false
-    }
-}
-
-// MARK: - Activity Date Sheet
-
-struct ActivityDateSheet: View {
-    @ObservedObject var vm: ActivityViewModel
-    @Binding var isPresented: Bool
-    @State private var fromDate = Date()
-    @State private var toDate = Date()
-    @State private var lastToDay: Int = 0
-    @State private var validationError: String?
-
-    private let brt = TimeZone(secondsFromGMT: -3 * 3600)!
-
-    var body: some View {
-        NavigationView {
-            Form {
-                Section {
-                    DatePicker("De", selection: $fromDate, in: ...Date(), displayedComponents: [.date, .hourAndMinute])
-                        .environment(\.timeZone, brt)
-                    DatePicker("Até", selection: $toDate, in: ...Date(), displayedComponents: [.date, .hourAndMinute])
-                        .environment(\.timeZone, brt)
-                        .onChange(of: toDate) { newVal in
-                            var calBRT = Calendar.current; calBRT.timeZone = brt
-                            let newDay = calBRT.ordinality(of: .day, in: .era, for: newVal) ?? 0
-                            guard newDay != lastToDay else { return }
-                            lastToDay = newDay
-                            if calBRT.isDateInToday(newVal) {
-                                let now = Date()
-                                var comps = calBRT.dateComponents([.year, .month, .day], from: newVal)
-                                comps.hour = calBRT.component(.hour, from: now)
-                                comps.minute = calBRT.component(.minute, from: now); comps.second = 0
-                                if let adj = calBRT.date(from: comps) { toDate = adj }
-                            } else {
-                                var comps = calBRT.dateComponents([.year, .month, .day], from: newVal)
-                                comps.hour = 23; comps.minute = 59; comps.second = 59
-                                if let adj = calBRT.date(from: comps) { toDate = adj }
-                            }
-                        }
-                } header: { Text("Período personalizado") }
-                if let err = validationError {
-                    Section { Text(err).font(.system(size: 13)).foregroundColor(.mgRed) }
-                }
-            }
-            .navigationTitle("Período")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { isPresented = false } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Aplicar") {
-                        if fromDate >= toDate { validationError = "A data final deve ser posterior à data inicial."; return }
-                        let fmt = ISO8601DateFormatter(); fmt.timeZone = TimeZone(secondsFromGMT: 0)
-                        vm.customFrom = fmt.string(from: fromDate)
-                        vm.customTo = fmt.string(from: toDate)
-                        vm.isCustomPeriod = true
-                        isPresented = false
-                        Task { await vm.loadOrders() }
-                    }
-                }
-            }
-        }
-        .presentationDetents([.medium])
-        .onAppear {
-            var calBRT = Calendar.current; calBRT.timeZone = brt
-            fromDate = calBRT.startOfDay(for: Date()); toDate = Date()
-            lastToDay = calBRT.ordinality(of: .day, in: .era, for: toDate) ?? 0
-        }
     }
 }
 
 // MARK: - Models
 
 struct OrderGroup: Identifiable {
-    let date: String
-    let label: String
-    let orders: [ActivityOrder]
+    let date: String; let label: String; let orders: [ActivityOrder]
     var id: String { date }
 }
 
@@ -535,8 +564,7 @@ struct ActivityOrder: Identifiable {
     let approvedAt: Date?
 
     init?(json: [String: Any]) {
-        guard let id = json["id"] as? String,
-              let status = json["status"] as? String else { return nil }
+        guard let id = json["id"] as? String, let status = json["status"] as? String else { return nil }
         self.id = id
         self.externalOrderId = json["externalOrderId"] as? String ?? ""
         self.status = status
@@ -549,13 +577,10 @@ struct ActivityOrder: Identifiable {
         self.utmSource = json["utmSource"] as? String ?? ""
         self.utmCampaign = json["utmCampaign"] as? String ?? ""
         self.src = json["src"] as? String ?? ""
-
-        let isoFmt = ISO8601DateFormatter()
-        isoFmt.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let s = json["orderCreatedAt"] as? String { self.date = isoFmt.date(from: s) ?? Date() }
-        else { self.date = Date() }
-        if let s = json["approvedAt"] as? String { self.approvedAt = isoFmt.date(from: s) }
-        else { self.approvedAt = nil }
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        self.date = (json["orderCreatedAt"] as? String).flatMap { iso.date(from: $0) } ?? Date()
+        self.approvedAt = (json["approvedAt"] as? String).flatMap { iso.date(from: $0) }
     }
 
     var statusLabel: String {
@@ -565,7 +590,7 @@ struct ActivityOrder: Identifiable {
         case "REFUSED": return "Venda recusada"
         case "REFUNDED": return "Venda reembolsada"
         case "CHARGEDBACK": return "Chargeback"
-        default: return "Venda \(status.lowercased())"
+        default: return "Venda"
         }
     }
 
@@ -584,45 +609,34 @@ struct ActivityOrder: Identifiable {
         switch status {
         case "APPROVED": return .mgGreen
         case "PENDING": return .mgAmber
-        case "REFUSED", "REFUNDED", "CHARGEDBACK": return .mgRed
-        default: return .mgText2
+        default: return .mgRed
         }
     }
 
-    private func fmtCurrency(_ cents: Int) -> String {
-        let v = Double(cents) / 100.0
+    private func cur(_ cents: Int) -> String {
         let f = NumberFormatter(); f.numberStyle = .currency; f.currencyCode = "BRL"
         f.locale = Locale(identifier: "pt_BR"); f.minimumFractionDigits = 2
-        return f.string(from: NSNumber(value: v)) ?? "R$ 0,00"
+        return f.string(from: NSNumber(value: Double(cents) / 100.0)) ?? "R$ 0,00"
     }
 
-    var valueFormatted: String { fmtCurrency(grossAmountCents) }
-    var netValueFormatted: String { fmtCurrency(netAmountCents) }
+    var valueFormatted: String { cur(grossAmountCents) }
+    var netValueFormatted: String { cur(netAmountCents) }
 
     var timeFormatted: String {
-        let fmt = DateFormatter(); fmt.dateFormat = "HH:mm"
-        fmt.timeZone = TimeZone(secondsFromGMT: -3 * 3600)
-        return fmt.string(from: date)
+        let f = DateFormatter(); f.dateFormat = "HH:mm"; f.timeZone = TimeZone(secondsFromGMT: -3 * 3600)
+        return f.string(from: date)
     }
-
     var fullDateFormatted: String {
-        let fmt = DateFormatter(); fmt.dateFormat = "dd/MM/yyyy HH:mm"
-        fmt.timeZone = TimeZone(secondsFromGMT: -3 * 3600)
-        return fmt.string(from: date)
+        let f = DateFormatter(); f.dateFormat = "dd/MM/yyyy HH:mm"; f.timeZone = TimeZone(secondsFromGMT: -3 * 3600)
+        return f.string(from: date)
     }
-
     var approvedDateFormatted: String? {
         guard let d = approvedAt else { return nil }
-        let fmt = DateFormatter(); fmt.dateFormat = "dd/MM/yyyy HH:mm"
-        fmt.timeZone = TimeZone(secondsFromGMT: -3 * 3600)
-        return fmt.string(from: d)
+        let f = DateFormatter(); f.dateFormat = "dd/MM/yyyy HH:mm"; f.timeZone = TimeZone(secondsFromGMT: -3 * 3600)
+        return f.string(from: d)
     }
 
     var detail: String {
-        var parts: [String] = []
-        if !productName.isEmpty { parts.append(productName) }
-        if !paymentMethod.isEmpty { parts.append(paymentMethod.uppercased()) }
-        if !utmCampaign.isEmpty { parts.append(utmCampaign) }
-        return parts.joined(separator: " • ")
+        [productName, paymentMethod.uppercased(), utmCampaign].filter { !$0.isEmpty }.joined(separator: " • ")
     }
 }
