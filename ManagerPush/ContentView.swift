@@ -22,14 +22,12 @@ struct MainTabView: View {
             DashboardView()
                 .tabItem {
                     Image(systemName: "chart.bar.fill")
-                    Text("Dashboard")
                 }
                 .tag(0)
 
             NotificationsPlaceholderView()
                 .tabItem {
                     Image(systemName: "bell.fill")
-                    Text("Notificações")
                 }
                 .tag(1)
 
@@ -38,7 +36,6 @@ struct MainTabView: View {
             }
             .tabItem {
                 Image(systemName: "gearshape.fill")
-                Text("Ajustes")
             }
             .tag(2)
         }
