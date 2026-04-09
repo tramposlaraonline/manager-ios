@@ -31,9 +31,7 @@ struct MainTabView: View {
                 }
                 .tag(1)
 
-            NavigationView {
-                SettingsView()
-            }
+            SettingsView()
             .tabItem {
                 Image(systemName: "gearshape")
             }
@@ -139,7 +137,7 @@ struct SettingsView: View {
             VStack(spacing: 16) {
                 // Notifications section
                 settingsCard {
-                    settingsHeader("Notificações de Venda", icon: "bell.fill")
+                    settingsHeader("Notificações de vendas", icon: "bell.fill")
                     settingsToggle("Vendas pendentes", isOn: $dm.notifyPending, key: "notifyPending")
                     settingsToggle("Vendas aprovadas", isOn: $dm.notifyApproved, key: "notifyApproved")
                     settingsToggle("Vendas recusadas", isOn: $dm.notifyRefused, key: "notifyRefused")
@@ -148,7 +146,7 @@ struct SettingsView: View {
 
                 // Notification format
                 settingsCard {
-                    settingsHeader("Formato da Notificação", icon: "text.bubble.fill")
+                    settingsHeader("Formato da notificação", icon: "text.bubble.fill")
                     HStack {
                         Text("Valor exibido").font(.system(size: 13)).foregroundColor(.mgText)
                         Spacer()
@@ -167,9 +165,17 @@ struct SettingsView: View {
                     settingsToggle("Campanha (utm_campaign)", isOn: $dm.showCampaignName, key: "showCampaignName")
                 }
 
+                // Notification preview
+                settingsCard {
+                    settingsHeader("Prévia da notificação", icon: "eye.fill")
+                    NotificationPreviewCard(dm: dm)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 14)
+                }
+
                 // Reports
                 settingsCard {
-                    settingsHeader("Relatórios Agendados", icon: "clock.fill")
+                    settingsHeader("Relatórios agendados", icon: "clock.fill")
                     Text("Receba um resumo de vendas nos horários selecionados")
                         .font(.system(size: 11)).foregroundColor(.mgText3)
                         .padding(.horizontal, 16).padding(.bottom, 4)
@@ -206,7 +212,6 @@ struct SettingsView: View {
             .padding(16)
         }
         .background(Color.mgBg)
-        .navigationTitle("Ajustes")
         .onAppear { Task { await dm.fetchPreferences() } }
     }
 
@@ -261,5 +266,59 @@ struct SettingsView: View {
             .padding(.vertical, 10)
             Divider().padding(.leading, 16)
         }
+    }
+}
+
+// MARK: - Notification Preview Card
+
+struct NotificationPreviewCard: View {
+    @ObservedObject var dm: DeviceManager
+
+    var body: some View {
+        HStack(spacing: 10) {
+            // App icon placeholder
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.mgAccent.opacity(0.2))
+                .frame(width: 36, height: 36)
+                .overlay(
+                    Image(systemName: "chart.bar.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(.mgAccent)
+                )
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(previewTitle)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.mgText)
+                Text(previewBody)
+                    .font(.system(size: 11))
+                    .foregroundColor(.mgText3)
+                    .lineLimit(2)
+            }
+
+            Spacer()
+
+            Text("agora")
+                .font(.system(size: 10))
+                .foregroundColor(.mgText3)
+        }
+        .padding(12)
+        .background(Color.mgBg)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.mgBorder, lineWidth: 1))
+    }
+
+    private var previewTitle: String { "Venda aprovada" }
+
+    private var previewBody: String {
+        var parts: [String] = []
+        if dm.valueDisplay == "net" {
+            parts.append("Valor líquido: R$ 16,77")
+        } else if dm.valueDisplay == "gross" {
+            parts.append("Valor bruto: R$ 17,81")
+        }
+        if dm.showProductName { parts.append("Taxa de validação") }
+        if dm.showCampaignName { parts.append("SITE ABO - 2/3") }
+        return parts.isEmpty ? "Notificação de venda" : parts.joined(separator: " | ")
     }
 }
