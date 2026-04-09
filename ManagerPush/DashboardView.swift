@@ -24,34 +24,30 @@ struct DashboardView: View {
     @StateObject private var dm = DeviceManager.shared
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Fixed toolbar
-            toolbarSection
+        ScrollView {
+            VStack(spacing: 0) {
+                // Toolbar: period + filters
+                toolbarSection
 
-            // Scrollable metrics with pull-to-refresh
-            ScrollView {
-                VStack(spacing: 10) {
-                    // Last updated
-                    if let ts = vm.lastUpdated {
-                        HStack {
-                            Spacer()
-                            Text("atualizado às \(ts)")
-                                .font(.system(size: 10))
-                                .foregroundColor(.mgText3)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 4)
+                // Last updated
+                if let ts = vm.lastUpdated {
+                    HStack {
+                        Spacer()
+                        Text("atualizado às \(ts)")
+                            .font(.system(size: 10))
+                            .foregroundColor(.mgText3)
                     }
-
-                    metricsSection
-                        .padding(.horizontal, 16)
-                        .padding(.top, vm.lastUpdated == nil ? 10 : 2)
-                        .padding(.bottom, 20)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 4)
                 }
+
+                // Metrics
+                metricsSection
             }
-            .refreshable {
-                await vm.loadSummary()
-            }
+            .padding(.bottom, 20)
+        }
+        .refreshable {
+            await vm.loadSummary()
         }
         .background(Color.mgBg)
         .onAppear {
@@ -103,13 +99,17 @@ struct DashboardView: View {
             .padding(.top, 10)
         }
         .padding(12)
-        .background(Color.mgCard)
-        .overlay(
-            Rectangle().fill(Color.mgBorder).frame(height: 1),
-            alignment: .bottom
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.mgCard)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.mgBorder, lineWidth: 1)
+                )
         )
         .padding(.horizontal, 16)
         .padding(.top, 8)
+        .padding(.bottom, 14)
     }
 
     private func filterChip(label: String, value: String, items: [MenuItem]) -> some View {
@@ -144,12 +144,11 @@ struct DashboardView: View {
 
     // MARK: - Metrics
 
-    @ViewBuilder
     private var metricsSection: some View {
-        if vm.isLoading && vm.summary == nil {
-            // Skeleton loading
-            VStack(spacing: 10) {
-                ForEach(0..<6, id: \.self) { _ in
+        VStack(spacing: 10) {
+            if vm.isLoading && vm.summary == nil {
+                // Skeleton loading
+                ForEach(0..<5, id: \.self) { _ in
                     SkeletonCard()
                 }
                 HStack(spacing: 10) {
@@ -158,9 +157,7 @@ struct DashboardView: View {
                 ForEach(0..<3, id: \.self) { _ in
                     SkeletonCard()
                 }
-            }
-        } else if let s = vm.summary {
-            VStack(spacing: 10) {
+            } else if let s = vm.summary {
                 MetricCard(label: "Gastos com Anúncios", value: s.spendFormatted)
                 MetricCard(label: "Faturamento Bruto", value: s.grossRevenueFormatted)
                 MetricCard(label: "Faturamento Líquido", value: s.netRevenueFormatted)
@@ -174,25 +171,32 @@ struct DashboardView: View {
 
                 MetricCard(label: "Vendas Pendentes", value: s.pendingRevenueFormatted)
 
-                // Reembolsadas 70% | Reembolso 30%
-                HStack(spacing: 10) {
-                    MetricCard(label: "Vendas Reembolsadas", value: s.refundedRevenueFormatted)
-                        .frame(maxWidth: .infinity)
-                    MetricCard(label: "Reembolso", value: s.refundRateFormatted)
-                        .frame(width: UIScreen.main.bounds.width * 0.25)
+                // Reembolsadas 70% | Reembolso % 30%
+                GeometryReader { geo in
+                    HStack(spacing: 10) {
+                        MetricCard(label: "Vendas Reembolsadas", value: s.refundedRevenueFormatted)
+                            .frame(width: (geo.size.width - 10) * 0.7)
+                        MetricCard(label: "Reembolso", value: s.refundRateFormatted)
+                            .frame(width: (geo.size.width - 10) * 0.3)
+                    }
                 }
+                .frame(height: 72)
 
                 // Chargeback 70% | Chargeback % 30%
-                HStack(spacing: 10) {
-                    MetricCard(label: "Vendas Chargeback", value: s.chargedbackRevenueFormatted)
-                        .frame(maxWidth: .infinity)
-                    MetricCard(label: "Chargeback", value: s.chargebackRateFormatted)
-                        .frame(width: UIScreen.main.bounds.width * 0.25)
+                GeometryReader { geo in
+                    HStack(spacing: 10) {
+                        MetricCard(label: "Vendas Chargeback", value: s.chargedbackRevenueFormatted)
+                            .frame(width: (geo.size.width - 10) * 0.7)
+                        MetricCard(label: "Chargeback", value: s.chargebackRateFormatted)
+                            .frame(width: (geo.size.width - 10) * 0.3)
+                    }
                 }
+                .frame(height: 72)
 
                 MetricCard(label: "Vendas Devolvidas", value: s.returnedRevenueFormatted)
             }
         }
+        .padding(.horizontal, 16)
     }
 }
 
@@ -255,7 +259,7 @@ struct MetricCard: View {
                     .fill(Color.mgCard)
                 RoundedRectangle(cornerRadius: 9)
                     .stroke(Color.mgBorder, lineWidth: 1)
-                // Purple gradient top bar — clipped to card shape
+                // Gradient clipped to full rounded rect so corners aren't sharp
                 LinearGradient(
                     gradient: Gradient(colors: [Color.mgAccent.opacity(0.6), Color.clear]),
                     startPoint: .leading,
@@ -268,7 +272,7 @@ struct MetricCard: View {
     }
 }
 
-// MARK: - Period Enum (matching desktop exactly)
+// MARK: - Period Enum (matching desktop: Hoje, Ontem, Semana, Sem. passada, Mês, Mês passado, Tudo)
 
 enum DashboardPeriod: CaseIterable {
     case today, yesterday, week, lastweek, month, lastmonth, all
@@ -291,7 +295,7 @@ enum DashboardPeriod: CaseIterable {
         calBRT.timeZone = brt
         let now = Date()
         let todayStart = calBRT.startOfDay(for: now)
-        let daySeconds: TimeInterval = 86400
+        let day: TimeInterval = 86400
 
         let from: Date
         let to: Date
@@ -299,36 +303,35 @@ enum DashboardPeriod: CaseIterable {
         switch self {
         case .today:
             from = todayStart
-            to = Date(timeInterval: daySeconds - 1, since: todayStart)
+            to = Date(timeInterval: day - 1, since: todayStart)
         case .yesterday:
-            from = Date(timeInterval: -daySeconds, since: todayStart)
+            from = Date(timeInterval: -day, since: todayStart)
             to = Date(timeInterval: -1, since: todayStart)
         case .week:
-            let weekday = calBRT.component(.weekday, from: todayStart)
-            let sundayOffset = -(weekday - 1)
-            from = calBRT.date(byAdding: .day, value: sundayOffset, to: todayStart)!
-            to = Date(timeInterval: 7 * daySeconds - 1, since: from)
+            let wd = calBRT.component(.weekday, from: todayStart)
+            from = calBRT.date(byAdding: .day, value: -(wd - 1), to: todayStart)!
+            to = Date(timeInterval: 7 * day - 1, since: from)
         case .lastweek:
-            let weekday = calBRT.component(.weekday, from: todayStart)
-            let sundayOffset = -(weekday - 1 + 7)
-            from = calBRT.date(byAdding: .day, value: sundayOffset, to: todayStart)!
-            to = Date(timeInterval: 7 * daySeconds - 1, since: from)
+            let wd = calBRT.component(.weekday, from: todayStart)
+            from = calBRT.date(byAdding: .day, value: -(wd - 1 + 7), to: todayStart)!
+            to = Date(timeInterval: 7 * day - 1, since: from)
         case .month:
-            var comps = calBRT.dateComponents([.year, .month], from: now)
-            comps.day = 1; comps.hour = 0; comps.minute = 0; comps.second = 0
-            from = calBRT.date(from: comps)!
-            to = Date(timeInterval: daySeconds - 1, since: todayStart)
+            var c = calBRT.dateComponents([.year, .month], from: now)
+            c.day = 1; c.hour = 0; c.minute = 0; c.second = 0
+            from = calBRT.date(from: c)!
+            to = Date(timeInterval: day - 1, since: todayStart)
         case .lastmonth:
-            var comps = calBRT.dateComponents([.year, .month], from: now)
-            comps.month! -= 1; comps.day = 1; comps.hour = 0; comps.minute = 0; comps.second = 0
-            from = calBRT.date(from: comps)!
-            var endComps = calBRT.dateComponents([.year, .month], from: now)
-            endComps.day = 1; endComps.hour = 0; endComps.minute = 0; endComps.second = 0
-            let monthStart = calBRT.date(from: endComps)!
-            to = Date(timeInterval: -1, since: monthStart)
+            var c = calBRT.dateComponents([.year, .month], from: now)
+            c.month! -= 1; c.day = 1; c.hour = 0; c.minute = 0; c.second = 0
+            from = calBRT.date(from: c)!
+            var e = calBRT.dateComponents([.year, .month], from: now)
+            e.day = 1; e.hour = 0; e.minute = 0; e.second = 0
+            to = Date(timeInterval: -1, since: calBRT.date(from: e)!)
         case .all:
-            from = ISO8601DateFormatter().date(from: "2020-01-01T03:00:00Z")!
-            to = Date(timeInterval: daySeconds - 1, since: todayStart)
+            let fmt2 = ISO8601DateFormatter()
+            fmt2.timeZone = TimeZone(secondsFromGMT: 0)
+            from = fmt2.date(from: "2020-01-01T03:00:00Z")!
+            to = Date(timeInterval: day - 1, since: todayStart)
         }
 
         let fmt = ISO8601DateFormatter()
