@@ -25,7 +25,7 @@ struct MainTabView: View {
                 }
                 .tag(0)
 
-            NotificationsPlaceholderView()
+            ActivityView()
                 .tabItem {
                     Image(systemName: "bell")
                 }
@@ -54,26 +54,6 @@ struct MainTabView: View {
             UITabBar.appearance().standardAppearance = appearance
             UITabBar.appearance().scrollEdgeAppearance = appearance
         }
-    }
-}
-
-// MARK: - Notifications Placeholder
-
-struct NotificationsPlaceholderView: View {
-    var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "bell.slash")
-                .font(.system(size: 40))
-                .foregroundColor(.mgText3)
-            Text("Notificações")
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundColor(.mgText)
-            Text("Histórico de notificações em breve")
-                .font(.system(size: 13))
-                .foregroundColor(.mgText3)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.mgBg)
     }
 }
 
