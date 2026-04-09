@@ -477,7 +477,13 @@ class DashboardViewModel: ObservableObject {
             let timeFmt = DateFormatter(); timeFmt.dateFormat = "HH:mm"; timeFmt.timeZone = brt
             let dateFmt = DateFormatter(); dateFmt.dateFormat = "dd/MM HH:mm"; dateFmt.timeZone = brt
             if fromIsToday && toIsToday {
-                return "exibindo dados de hoje até \(timeFmt.string(from: toD))"
+                let fromH = cal.component(.hour, from: fromD)
+                let fromM = cal.component(.minute, from: fromD)
+                if fromH == 0 && fromM == 0 {
+                    return "exibindo dados até \(timeFmt.string(from: toD)) de hoje"
+                } else {
+                    return "exibindo dados de \(timeFmt.string(from: fromD)) até \(timeFmt.string(from: toD)) de hoje"
+                }
             } else {
                 return "exibindo dados de \(dateFmt.string(from: fromD)) até \(dateFmt.string(from: toD))"
             }
