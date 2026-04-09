@@ -27,6 +27,21 @@ class DeviceManager: ObservableObject {
     @Published var reportAt18: Bool = true
     @Published var reportAt23: Bool = true
 
+    // Detect APNs environment: sandbox (Xcode) vs production (TestFlight/App Store)
+    static var apnsEnvironment: String {
+        #if DEBUG
+        return "sandbox"
+        #else
+        if let url = Bundle.main.appStoreReceiptURL {
+            // Sandbox receipts contain "sandboxReceipt" in the path
+            if url.lastPathComponent == "sandboxReceipt" {
+                return "sandbox"
+            }
+        }
+        return "production"
+        #endif
+    }
+
     private init() {
         loadPreferencesFromLocal()
     }
@@ -50,7 +65,8 @@ class DeviceManager: ObservableObject {
         let body: [String: Any] = [
             "deviceToken": deviceToken,
             "pairingCode": code,
-            "name": UIDevice.current.name
+            "name": UIDevice.current.name,
+            "environment": DeviceManager.apnsEnvironment
         ]
 
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
