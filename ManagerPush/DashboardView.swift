@@ -2,7 +2,7 @@ import SwiftUI
 import Combine
 import UIKit
 
-// MARK: - Color Constants (matching Manager design system)
+// MARK: - Color Constants
 
 extension Color {
     static let mgBg = Color(red: 13/255, green: 15/255, blue: 24/255)
@@ -24,15 +24,34 @@ struct DashboardView: View {
     @StateObject private var dm = DeviceManager.shared
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                toolbarSection
-                metricsSection
+        VStack(spacing: 0) {
+            // Fixed toolbar
+            toolbarSection
+
+            // Scrollable metrics with pull-to-refresh
+            ScrollView {
+                VStack(spacing: 10) {
+                    // Last updated
+                    if let ts = vm.lastUpdated {
+                        HStack {
+                            Spacer()
+                            Text("atualizado às \(ts)")
+                                .font(.system(size: 10))
+                                .foregroundColor(.mgText3)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 4)
+                    }
+
+                    metricsSection
+                        .padding(.horizontal, 16)
+                        .padding(.top, vm.lastUpdated == nil ? 10 : 2)
+                        .padding(.bottom, 20)
+                }
             }
-            .padding(.bottom, 20)
-        }
-        .refreshable {
-            await vm.loadSummary()
+            .refreshable {
+                await vm.loadSummary()
+            }
         }
         .background(Color.mgBg)
         .onAppear {
@@ -46,11 +65,10 @@ struct DashboardView: View {
         }
     }
 
-    // MARK: - Toolbar (Period + Filters)
+    // MARK: - Toolbar
 
     private var toolbarSection: some View {
         VStack(spacing: 0) {
-            // Period pills
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 4) {
                     ForEach(DashboardPeriod.allCases, id: \.self) { period in
@@ -75,35 +93,23 @@ struct DashboardView: View {
             }
             .padding(.bottom, 10)
 
-            // Divider
-            Rectangle()
-                .fill(Color.mgBorder)
-                .frame(height: 1)
+            Rectangle().fill(Color.mgBorder).frame(height: 1)
 
-            // Filter row
             HStack(spacing: 0) {
                 filterChip(label: "Conta", value: vm.selectedAccountName, items: vm.accountMenuItems)
-
-                Rectangle()
-                    .fill(Color.mgBorder)
-                    .frame(width: 1, height: 32)
-
+                Rectangle().fill(Color.mgBorder).frame(width: 1, height: 32)
                 filterChip(label: "Produto", value: vm.selectedProductName, items: vm.productMenuItems)
             }
             .padding(.top, 10)
         }
         .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.mgCard)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color.mgBorder, lineWidth: 1)
-                )
+        .background(Color.mgCard)
+        .overlay(
+            Rectangle().fill(Color.mgBorder).frame(height: 1),
+            alignment: .bottom
         )
         .padding(.horizontal, 16)
         .padding(.top, 8)
-        .padding(.bottom, 14)
     }
 
     private func filterChip(label: String, value: String, items: [MenuItem]) -> some View {
@@ -138,13 +144,23 @@ struct DashboardView: View {
 
     // MARK: - Metrics
 
+    @ViewBuilder
     private var metricsSection: some View {
-        VStack(spacing: 10) {
-            if vm.isLoading && vm.summary == nil {
-                ProgressView()
-                    .tint(.mgAccent)
-                    .padding(.top, 40)
-            } else if let s = vm.summary {
+        if vm.isLoading && vm.summary == nil {
+            // Skeleton loading
+            VStack(spacing: 10) {
+                ForEach(0..<6, id: \.self) { _ in
+                    SkeletonCard()
+                }
+                HStack(spacing: 10) {
+                    SkeletonCard(); SkeletonCard(); SkeletonCard()
+                }
+                ForEach(0..<3, id: \.self) { _ in
+                    SkeletonCard()
+                }
+            }
+        } else if let s = vm.summary {
+            VStack(spacing: 10) {
                 MetricCard(label: "Gastos com Anúncios", value: s.spendFormatted)
                 MetricCard(label: "Faturamento Bruto", value: s.grossRevenueFormatted)
                 MetricCard(label: "Faturamento Líquido", value: s.netRevenueFormatted)
@@ -156,26 +172,61 @@ struct DashboardView: View {
                     MetricCard(label: "Margem", value: s.marginFormatted, valueColor: s.marginColor, valueSize: 19)
                 }
 
-                MetricCard(label: "Vendas Pendentes", value: "\(s.pendingOrders)")
+                MetricCard(label: "Vendas Pendentes", value: s.pendingRevenueFormatted)
 
+                // Reembolsadas 70% | Reembolso 30%
                 HStack(spacing: 10) {
                     MetricCard(label: "Vendas Reembolsadas", value: s.refundedRevenueFormatted)
-                    MetricCard(label: "Vendas Chargeback", value: s.chargedbackRevenueFormatted)
-                }
-
-                HStack(spacing: 10) {
+                        .frame(maxWidth: .infinity)
                     MetricCard(label: "Reembolso", value: s.refundRateFormatted)
-                    MetricCard(label: "Chargeback", value: s.chargebackRateFormatted)
+                        .frame(width: UIScreen.main.bounds.width * 0.25)
                 }
 
-                MetricCard(label: "Vendas Devolvidas", value: "\(s.refundedOrders + s.chargedbackOrders)")
+                // Chargeback 70% | Chargeback % 30%
+                HStack(spacing: 10) {
+                    MetricCard(label: "Vendas Chargeback", value: s.chargedbackRevenueFormatted)
+                        .frame(maxWidth: .infinity)
+                    MetricCard(label: "Chargeback", value: s.chargebackRateFormatted)
+                        .frame(width: UIScreen.main.bounds.width * 0.25)
+                }
+
+                MetricCard(label: "Vendas Devolvidas", value: s.returnedRevenueFormatted)
             }
         }
-        .padding(.horizontal, 16)
     }
 }
 
-// MARK: - Metric Card Component
+// MARK: - Skeleton Loading Card
+
+struct SkeletonCard: View {
+    @State private var shimmer = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            RoundedRectangle(cornerRadius: 3)
+                .fill(Color.mgBorder.opacity(0.5))
+                .frame(width: 100, height: 10)
+            RoundedRectangle(cornerRadius: 4)
+                .fill(Color.mgBorder.opacity(0.4))
+                .frame(width: 150, height: 22)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 9)
+                .fill(Color.mgCard)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 9)
+                        .stroke(Color.mgBorder, lineWidth: 1)
+                )
+        )
+        .opacity(shimmer ? 0.5 : 1.0)
+        .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: shimmer)
+        .onAppear { shimmer = true }
+    }
+}
+
+// MARK: - Metric Card
 
 struct MetricCard: View {
     let label: String
@@ -204,40 +255,33 @@ struct MetricCard: View {
                     .fill(Color.mgCard)
                 RoundedRectangle(cornerRadius: 9)
                     .stroke(Color.mgBorder, lineWidth: 1)
+                // Purple gradient top bar — clipped to card shape
                 LinearGradient(
                     gradient: Gradient(colors: [Color.mgAccent.opacity(0.6), Color.clear]),
                     startPoint: .leading,
                     endPoint: .trailing
                 )
                 .frame(height: 2)
-                .clipShape(RoundedCorner(radius: 9, corners: [.topLeft, .topRight]))
+                .clipShape(RoundedRectangle(cornerRadius: 9))
             }
         )
     }
 }
 
-struct RoundedCorner: Shape {
-    var radius: CGFloat = 0
-    var corners: UIRectCorner = .allCorners
-    func path(in rect: CGRect) -> Path {
-        let path = UIBezierPath(roundedRect: rect, byRoundingCorners: corners, cornerRadii: CGSize(width: radius, height: radius))
-        return Path(path.cgPath)
-    }
-}
-
-// MARK: - Period Enum
+// MARK: - Period Enum (matching desktop exactly)
 
 enum DashboardPeriod: CaseIterable {
-    case today, yesterday, days7, days14, days30, month
+    case today, yesterday, week, lastweek, month, lastmonth, all
 
     var label: String {
         switch self {
         case .today: return "Hoje"
         case .yesterday: return "Ontem"
-        case .days7: return "7d"
-        case .days14: return "14d"
-        case .days30: return "30d"
+        case .week: return "Semana"
+        case .lastweek: return "Sem. passada"
         case .month: return "Mês"
+        case .lastmonth: return "Mês passado"
+        case .all: return "Tudo"
         }
     }
 
@@ -247,26 +291,44 @@ enum DashboardPeriod: CaseIterable {
         calBRT.timeZone = brt
         let now = Date()
         let todayStart = calBRT.startOfDay(for: now)
+        let daySeconds: TimeInterval = 86400
 
         let from: Date
         let to: Date
 
         switch self {
         case .today:
-            from = todayStart; to = now
+            from = todayStart
+            to = Date(timeInterval: daySeconds - 1, since: todayStart)
         case .yesterday:
-            from = calBRT.date(byAdding: .day, value: -1, to: todayStart)!
-            to = todayStart.addingTimeInterval(-1)
-        case .days7:
-            from = calBRT.date(byAdding: .day, value: -6, to: todayStart)!; to = now
-        case .days14:
-            from = calBRT.date(byAdding: .day, value: -13, to: todayStart)!; to = now
-        case .days30:
-            from = calBRT.date(byAdding: .day, value: -29, to: todayStart)!; to = now
+            from = Date(timeInterval: -daySeconds, since: todayStart)
+            to = Date(timeInterval: -1, since: todayStart)
+        case .week:
+            let weekday = calBRT.component(.weekday, from: todayStart)
+            let sundayOffset = -(weekday - 1)
+            from = calBRT.date(byAdding: .day, value: sundayOffset, to: todayStart)!
+            to = Date(timeInterval: 7 * daySeconds - 1, since: from)
+        case .lastweek:
+            let weekday = calBRT.component(.weekday, from: todayStart)
+            let sundayOffset = -(weekday - 1 + 7)
+            from = calBRT.date(byAdding: .day, value: sundayOffset, to: todayStart)!
+            to = Date(timeInterval: 7 * daySeconds - 1, since: from)
         case .month:
             var comps = calBRT.dateComponents([.year, .month], from: now)
             comps.day = 1; comps.hour = 0; comps.minute = 0; comps.second = 0
-            from = calBRT.date(from: comps)!; to = now
+            from = calBRT.date(from: comps)!
+            to = Date(timeInterval: daySeconds - 1, since: todayStart)
+        case .lastmonth:
+            var comps = calBRT.dateComponents([.year, .month], from: now)
+            comps.month! -= 1; comps.day = 1; comps.hour = 0; comps.minute = 0; comps.second = 0
+            from = calBRT.date(from: comps)!
+            var endComps = calBRT.dateComponents([.year, .month], from: now)
+            endComps.day = 1; endComps.hour = 0; endComps.minute = 0; endComps.second = 0
+            let monthStart = calBRT.date(from: endComps)!
+            to = Date(timeInterval: -1, since: monthStart)
+        case .all:
+            from = ISO8601DateFormatter().date(from: "2020-01-01T03:00:00Z")!
+            to = Date(timeInterval: daySeconds - 1, since: todayStart)
         }
 
         let fmt = ISO8601DateFormatter()
@@ -296,6 +358,7 @@ class DashboardViewModel: ObservableObject {
     @Published var accounts: [FilterItem] = []
     @Published var summary: DashboardSummary?
     @Published var isLoading = false
+    @Published var lastUpdated: String?
 
     var selectedAccountName: String {
         if let id = selectedAccountId, let acc = accounts.first(where: { $0.id == id }) { return acc.name }
@@ -363,6 +426,10 @@ class DashboardViewModel: ObservableObject {
 
         if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
             summary = DashboardSummary(json: json)
+            let fmt = DateFormatter()
+            fmt.dateFormat = "HH:mm:ss"
+            fmt.timeZone = TimeZone(secondsFromGMT: -3 * 3600)
+            lastUpdated = fmt.string(from: Date())
         }
         isLoading = false
     }
@@ -384,11 +451,13 @@ struct DashboardSummary {
     let roi: Double
     let margin: Double
     let pendingOrders: Int
+    let pendingRevenue: Int
     let approvedOrders: Int
     let refundedOrders: Int
     let refundedRevenue: Int
     let chargedbackOrders: Int
     let chargedbackRevenue: Int
+    let returnedRevenue: Int
     let totalOrders: Int
     let refundRate: Double
     let chargebackRate: Double
@@ -402,11 +471,13 @@ struct DashboardSummary {
         roi = json["roi"] as? Double ?? 0
         margin = json["margin"] as? Double ?? 0
         pendingOrders = json["pendingOrders"] as? Int ?? 0
+        pendingRevenue = json["pendingRevenue"] as? Int ?? 0
         approvedOrders = json["approvedOrders"] as? Int ?? 0
         refundedOrders = json["refundedOrders"] as? Int ?? 0
         refundedRevenue = json["refundedRevenue"] as? Int ?? 0
         chargedbackOrders = json["chargedbackOrders"] as? Int ?? 0
         chargedbackRevenue = json["chargedbackRevenue"] as? Int ?? 0
+        returnedRevenue = json["returnedRevenue"] as? Int ?? 0
         totalOrders = json["totalOrders"] as? Int ?? 0
         refundRate = json["refundRate"] as? Double ?? 0
         chargebackRate = json["chargebackRate"] as? Double ?? 0
@@ -427,8 +498,10 @@ struct DashboardSummary {
     var grossRevenueFormatted: String { fmtCurrency(grossRevenue) }
     var netRevenueFormatted: String { fmtCurrency(netRevenue) }
     var profitFormatted: String { fmtCurrency(profit) }
+    var pendingRevenueFormatted: String { fmtCurrency(pendingRevenue) }
     var refundedRevenueFormatted: String { fmtCurrency(refundedRevenue) }
     var chargedbackRevenueFormatted: String { fmtCurrency(chargedbackRevenue) }
+    var returnedRevenueFormatted: String { fmtCurrency(returnedRevenue) }
 
     var roasFormatted: String { String(format: "%.2f", roas) }
     var roiFormatted: String { String(format: "%.2f", roi) }
@@ -436,7 +509,6 @@ struct DashboardSummary {
     var refundRateFormatted: String { String(format: "%.1f%%", refundRate * 100) }
     var chargebackRateFormatted: String { String(format: "%.1f%%", chargebackRate * 100) }
 
-    // Only color metrics that are colored on desktop
     var profitColor: Color { profit > 0 ? .mgGreen : profit < 0 ? .mgRed : .mgText }
     var roasColor: Color { roas >= 1 ? .mgGreen : roas > 0 ? .mgRed : .mgText }
     var roiColor: Color { roi >= 1 ? .mgGreen : roi > 0 ? .mgRed : .mgText }

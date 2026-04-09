@@ -21,13 +21,13 @@ struct MainTabView: View {
         TabView(selection: $selectedTab) {
             DashboardView()
                 .tabItem {
-                    Image(systemName: "chart.bar.fill")
+                    Image(systemName: "chart.bar.fill").environment(\.symbolVariants, .fill)
                 }
                 .tag(0)
 
             NotificationsPlaceholderView()
                 .tabItem {
-                    Image(systemName: "bell.fill")
+                    Image(systemName: "bell").environment(\.symbolVariants, .none)
                 }
                 .tag(1)
 
@@ -35,7 +35,7 @@ struct MainTabView: View {
                 SettingsView()
             }
             .tabItem {
-                Image(systemName: "gearshape.fill")
+                Image(systemName: "gearshape").environment(\.symbolVariants, .none)
             }
             .tag(2)
         }
@@ -45,6 +45,13 @@ struct MainTabView: View {
             let appearance = UITabBarAppearance()
             appearance.backgroundColor = UIColor(Color.mgCard)
             appearance.shadowColor = UIColor(Color.mgBorder)
+            // Smaller icons
+            let itemAppearance = UITabBarItemAppearance()
+            itemAppearance.normal.iconColor = UIColor(Color.mgText3)
+            itemAppearance.selected.iconColor = UIColor(Color.mgAccent)
+            appearance.stackedLayoutAppearance = itemAppearance
+            appearance.inlineLayoutAppearance = itemAppearance
+            appearance.compactInlineLayoutAppearance = itemAppearance
             UITabBar.appearance().standardAppearance = appearance
             UITabBar.appearance().scrollEdgeAppearance = appearance
         }
