@@ -40,6 +40,20 @@ struct MainTabView: View {
             .tag(2)
         }
         .accentColor(.mgAccent)
+        .onAppear {
+            let appearance = UITabBarAppearance()
+            appearance.configureWithOpaqueBackground()
+            appearance.backgroundColor = UIColor(Color.mgCard)
+            appearance.shadowColor = UIColor(Color.mgBorder)
+            let item = UITabBarItemAppearance()
+            item.normal.iconColor = UIColor(Color.mgText3)
+            item.selected.iconColor = UIColor(Color.mgAccent)
+            appearance.stackedLayoutAppearance = item
+            appearance.inlineLayoutAppearance = item
+            appearance.compactInlineLayoutAppearance = item
+            UITabBar.appearance().standardAppearance = appearance
+            UITabBar.appearance().scrollEdgeAppearance = appearance
+        }
     }
 }
 

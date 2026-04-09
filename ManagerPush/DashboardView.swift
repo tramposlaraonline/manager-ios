@@ -13,23 +13,17 @@ extension Color {
         })
     }
 
-    // Backgrounds & surfaces
-    static let mgBg     = adaptive(dark: (13, 15, 24),    light: (244, 245, 250))   // #0d0f18 / #f4f5fa
-    static let mgCard   = adaptive(dark: (18, 21, 31),    light: (255, 255, 255))   // #12151f / #ffffff
-    static let mgBorder = adaptive(dark: (37, 40, 64),    light: (208, 211, 232))   // #252840 / #d0d3e8
-
-    // Accent
-    static let mgAccent = adaptive(dark: (108, 92, 231),  light: (91, 79, 214))    // #6c5ce7 / #5b4fd6
-
-    // Text
-    static let mgText   = adaptive(dark: (221, 225, 245), light: (27, 29, 46))     // #dde1f5 / #1b1d2e
-    static let mgText2  = adaptive(dark: (122, 128, 164), light: (85, 88, 120))    // #7a80a4 / #555878
-    static let mgText3  = adaptive(dark: (92, 100, 144),  light: (120, 128, 168))  // #5c6490 / #7880a8
-
-    // Status
-    static let mgGreen  = adaptive(dark: (0, 200, 150),   light: (0, 168, 126))    // #00c896 / #00a87e
-    static let mgAmber  = adaptive(dark: (244, 169, 53),   light: (184, 107, 0))    // #f4a935 / #b86b00
-    static let mgRed    = adaptive(dark: (224, 108, 117),  light: (192, 64, 74))    // #e06c75 / #c0404a
+    static let mgBg     = adaptive(dark: (13, 15, 24),    light: (244, 245, 250))
+    static let mgCard   = adaptive(dark: (18, 21, 31),    light: (255, 255, 255))
+    static let mgBorder = adaptive(dark: (37, 40, 64),    light: (208, 211, 232))
+    static let mgAccent = adaptive(dark: (108, 92, 231),  light: (91, 79, 214))
+    static let mgText   = adaptive(dark: (221, 225, 245), light: (27, 29, 46))
+    static let mgText2  = adaptive(dark: (122, 128, 164), light: (85, 88, 120))
+    static let mgText3  = adaptive(dark: (92, 100, 144),  light: (120, 128, 168))
+    static let mgGreen  = adaptive(dark: (0, 200, 150),   light: (0, 168, 126))
+    static let mgAmber  = adaptive(dark: (244, 169, 53),   light: (184, 107, 0))
+    static let mgRed    = adaptive(dark: (224, 108, 117),  light: (192, 64, 74))
+    static let mgS2     = adaptive(dark: (25, 28, 44),    light: (236, 237, 245))
 }
 
 // MARK: - Dashboard View
@@ -41,24 +35,21 @@ struct DashboardView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Fixed toolbar
             toolbarSection
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
                 .padding(.bottom, 12)
 
-            // Timestamp row between toolbar and metrics
             HStack {
                 Spacer()
                 Text(vm.statusText)
-                    .font(.system(size: 9, weight: .regular, design: .monospaced))
-                    .foregroundColor(vm.isLoading ? .mgText3.opacity(0.6) : .mgText3.opacity(0.4))
+                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .foregroundColor(vm.isLoading ? .mgText3.opacity(0.6) : .mgText3.opacity(0.5))
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 6)
             .opacity(vm.statusText.isEmpty ? 0 : 1)
 
-            // Scrollable metrics
             List {
                 metricsContent
                     .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
@@ -100,42 +91,41 @@ struct DashboardView: View {
 
     private var toolbarSection: some View {
         VStack(spacing: 0) {
-            // Period selector — segmented style
-            VStack(spacing: 8) {
-                // Row 1: main periods
-                HStack(spacing: 0) {
-                    ForEach([DashboardPeriod.today, .yesterday, .week, .lastweek], id: \.self) { period in
-                        segmentButton(period.label, isActive: vm.selectedPeriod == period && !vm.isCustomPeriod) {
-                            vm.selectedPeriod = period; vm.isCustomPeriod = false
+            // Period selector — 2 rows of 4
+            VStack(spacing: 1) {
+                HStack(spacing: 1) {
+                    ForEach([DashboardPeriod.today, .yesterday, .week, .lastweek], id: \.self) { p in
+                        periodBtn(p.label, active: vm.selectedPeriod == p && !vm.isCustomPeriod,
+                                  corners: p == .today ? [.topLeft] : (p == .lastweek ? [.topRight] : [])) {
+                            vm.selectedPeriod = p; vm.isCustomPeriod = false
                             Task { await vm.loadSummary() }
                             if vm.periodIncludesToday { vm.startAutoRefresh() } else { vm.stopAutoRefresh() }
                         }
                     }
                 }
-                // Row 2: remaining + custom
-                HStack(spacing: 0) {
-                    ForEach([DashboardPeriod.month, .lastmonth, .all], id: \.self) { period in
-                        segmentButton(period.label, isActive: vm.selectedPeriod == period && !vm.isCustomPeriod) {
-                            vm.selectedPeriod = period; vm.isCustomPeriod = false
+                HStack(spacing: 1) {
+                    ForEach([DashboardPeriod.month, .lastmonth, .all], id: \.self) { p in
+                        periodBtn(p.label, active: vm.selectedPeriod == p && !vm.isCustomPeriod,
+                                  corners: p == .month ? [.bottomLeft] : []) {
+                            vm.selectedPeriod = p; vm.isCustomPeriod = false
                             Task { await vm.loadSummary() }
                             if vm.periodIncludesToday { vm.startAutoRefresh() } else { vm.stopAutoRefresh() }
                         }
                     }
-                    segmentButton(
-                        vm.isCustomPeriod ? vm.periodDisplayLabel : "Período...",
-                        isActive: vm.isCustomPeriod
-                    ) {
+                    periodBtn(vm.isCustomPeriod ? vm.periodDisplayLabel : "Período...",
+                              active: vm.isCustomPeriod, corners: [.bottomRight]) {
                         showCustomDate = true
                     }
                 }
             }
-            .padding(.bottom, 10)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.mgBorder, lineWidth: 1))
+            .padding(.bottom, 12)
 
             Rectangle().fill(Color.mgBorder).frame(height: 1)
 
-            // Filters + timestamp
             HStack(spacing: 0) {
-                filterChip(label: "Conta", value: vm.selectedAccountName, items: vm.accountMenuItems)
+                filterChip(label: "Conta de Anúncio", value: vm.selectedAccountName, items: vm.accountMenuItems)
                 Rectangle().fill(Color.mgBorder).frame(width: 1, height: 32)
                 filterChip(label: "Produto", value: vm.selectedProductName, items: vm.productMenuItems)
             }
@@ -149,21 +139,17 @@ struct DashboardView: View {
         )
     }
 
-    private func segmentButton(_ label: String, isActive: Bool, action: @escaping () -> Void) -> some View {
+    private func periodBtn(_ label: String, active: Bool, corners: UIRectCorner = [], action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(label)
-                .font(.system(size: 11, weight: .medium))
+                .font(.system(size: 11, weight: active ? .semibold : .medium))
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
-                .background(isActive ? Color.mgAccent : Color.clear)
-                .foregroundColor(isActive ? .white : .mgText3)
+                .padding(.vertical, 7)
+                .foregroundColor(active ? .white : .mgText2)
+                .background(active ? Color.mgAccent : Color.mgS2)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .background(Color.white.opacity(isActive ? 0 : 0.03))
-        .overlay(
-            Rectangle().stroke(Color.mgBorder.opacity(0.5), lineWidth: 0.5)
-        )
     }
 
     private func filterChip(label: String, value: String, items: [MenuItem]) -> some View {
@@ -220,6 +206,32 @@ struct DashboardView: View {
                     MetricCard(label: "Vendas Pendentes", value: s.pendingRevenueFormatted)
 
                     HStack(spacing: 10) {
+                        MetricCard(label: "ARPU", value: s.arpuFormatted)
+                        MetricCard(label: "CPA", value: s.cpaFormatted)
+                    }
+                    HStack(spacing: 10) {
+                        MetricCard(label: "Leads", value: s.leadsFormatted)
+                        MetricCard(label: "Custo por Lead", value: s.costPerLeadFormatted)
+                    }
+                    HStack(spacing: 10) {
+                        MetricCard(label: "Conversas", value: s.conversationsFormatted)
+                        MetricCard(label: "Custo por Conversa", value: s.costPerConversationFormatted)
+                    }
+
+                    HStack(spacing: 10) {
+                        MetricCard(label: "Imposto Total", value: s.totalTaxFormatted)
+                        MetricCard(label: "Imposto sobre Vendas", value: s.salesTaxFormatted)
+                    }
+                    HStack(spacing: 10) {
+                        MetricCard(label: "Imposto Meta Ads", value: s.metaAdsTaxFormatted)
+                        MetricCard(label: "Taxas", value: s.feesFormatted)
+                    }
+                    HStack(spacing: 10) {
+                        MetricCard(label: "Custos de Produto", value: s.productCostsFormatted)
+                        MetricCard(label: "Despesas Adicionais", value: s.additionalExpensesFormatted)
+                    }
+
+                    HStack(spacing: 10) {
                         MetricCard(label: "Vendas Reembolsadas", value: s.refundedRevenueFormatted)
                             .frame(width: (w - 10) * 0.7)
                         MetricCard(label: "Reembolso", value: s.refundRateFormatted)
@@ -231,33 +243,8 @@ struct DashboardView: View {
                         MetricCard(label: "Chargeback", value: s.chargebackRateFormatted)
                             .frame(width: (w - 10) * 0.3)
                     }
+
                     MetricCard(label: "Vendas Devolvidas", value: s.returnedRevenueFormatted)
-
-                    HStack(spacing: 10) {
-                        MetricCard(label: "Custos de Produto", value: s.productCostsFormatted)
-                        MetricCard(label: "Despesas Adicionais", value: s.additionalExpensesFormatted)
-                    }
-
-                    HStack(spacing: 10) {
-                        MetricCard(label: "ARPU", value: s.arpuFormatted)
-                        MetricCard(label: "CPA", value: s.cpaFormatted)
-                    }
-                    HStack(spacing: 10) {
-                        MetricCard(label: "Leads", value: s.leadsFormatted)
-                        MetricCard(label: "Custo por Lead", value: s.costPerLeadFormatted)
-                    }
-                    HStack(spacing: 10) {
-                        MetricCard(label: "Imp. sobre Vendas", value: s.salesTaxFormatted)
-                        MetricCard(label: "Imp. Total", value: s.totalTaxFormatted)
-                    }
-                    HStack(spacing: 10) {
-                        MetricCard(label: "Imp. Meta Ads", value: s.metaAdsTaxFormatted)
-                        MetricCard(label: "Taxas", value: s.feesFormatted)
-                    }
-                    HStack(spacing: 10) {
-                        MetricCard(label: "Conversas", value: s.conversationsFormatted)
-                        MetricCard(label: "Custo por Conversa", value: s.costPerConversationFormatted)
-                    }
                 }
                 .opacity(vm.isLoading ? 0.4 : 1.0)
                 .animation(.easeInOut(duration: 0.2), value: vm.isLoading)
@@ -314,43 +301,32 @@ struct CustomDateSheet: View {
                             }
                         }
                 } header: { Text("Período personalizado") }
-
                 if let err = validationError {
-                    Section {
-                        Text(err).font(.system(size: 13)).foregroundColor(.mgRed)
-                    }
+                    Section { Text(err).font(.system(size: 13)).foregroundColor(.mgRed) }
                 }
             }
             .navigationTitle("Período")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancelar") { isPresented = false }
-                }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { isPresented = false } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Aplicar") {
-                        if fromDate >= toDate {
-                            validationError = "A data final deve ser posterior à data inicial."
-                            return
-                        }
-                        let fmt = ISO8601DateFormatter()
-                        fmt.timeZone = TimeZone(secondsFromGMT: 0)
+                        if fromDate >= toDate { validationError = "A data final deve ser posterior à data inicial."; return }
+                        let fmt = ISO8601DateFormatter(); fmt.timeZone = TimeZone(secondsFromGMT: 0)
                         vm.customFrom = fmt.string(from: fromDate)
                         vm.customTo = fmt.string(from: toDate)
                         vm.isCustomPeriod = true
                         isPresented = false
                         Task { await vm.loadSummary() }
-                        vm.stopAutoRefresh() // custom periods don't auto-refresh
+                        vm.stopAutoRefresh()
                     }
                 }
             }
         }
         .presentationDetents([.medium])
         .onAppear {
-            var calBRT = Calendar.current
-            calBRT.timeZone = brt
-            fromDate = calBRT.startOfDay(for: Date())
-            toDate = Date()
+            var calBRT = Calendar.current; calBRT.timeZone = brt
+            fromDate = calBRT.startOfDay(for: Date()); toDate = Date()
             lastToDay = calBRT.ordinality(of: .day, in: .era, for: toDate) ?? 0
         }
     }
@@ -379,16 +355,16 @@ struct MetricCard: View {
         .padding(14)
         .background(Color.mgCard)
         .clipShape(RoundedRectangle(cornerRadius: 9))
-        .overlay(
-            RoundedRectangle(cornerRadius: 9).stroke(Color.mgBorder, lineWidth: 1)
-        )
+        .overlay(RoundedRectangle(cornerRadius: 9).stroke(Color.mgBorder, lineWidth: 1))
         .overlay(alignment: .top) {
+            // Gradient bar inset by 1px so it sits inside the rounded border
             LinearGradient(
                 colors: [Color.mgAccent.opacity(0.6), Color.clear],
                 startPoint: .leading, endPoint: .trailing
             )
             .frame(height: 2)
-            .clipShape(RoundedRectangle(cornerRadius: 9))
+            .padding(.horizontal, 1)
+            .padding(.top, 1)
         }
     }
 }
@@ -412,10 +388,8 @@ enum DashboardPeriod: CaseIterable {
 
     var dateRange: (from: String, to: String) {
         let brt = TimeZone(secondsFromGMT: -3 * 3600)!
-        var calBRT = Calendar.current
-        calBRT.timeZone = brt
-        let now = Date()
-        let todayStart = calBRT.startOfDay(for: now)
+        var calBRT = Calendar.current; calBRT.timeZone = brt
+        let now = Date(); let todayStart = calBRT.startOfDay(for: now)
         let day: TimeInterval = 86400
         let from: Date; let to: Date
         switch self {
@@ -481,7 +455,6 @@ class DashboardViewModel: ObservableObject {
     var statusText: String {
         if isLoading { return "carregando..." }
         if isCustomPeriod {
-            // Custom period: "exibindo dados de hoje até HH:MM" or "exibindo dados de DD/MM HH:MM até DD/MM HH:MM"
             let brt = TimeZone(secondsFromGMT: -3 * 3600)!
             let iso = ISO8601DateFormatter(); iso.timeZone = TimeZone(secondsFromGMT: 0)
             guard let fromD = iso.date(from: customFrom), let toD = iso.date(from: customTo) else { return "" }
@@ -531,14 +504,14 @@ class DashboardViewModel: ObservableObject {
 
     var selectedAccountName: String {
         if let id = selectedAccountId, let a = accounts.first(where: { $0.id == id }) { return a.name }
-        return "Todas as CAs"
+        return "Todas"
     }
     var selectedProductName: String {
         if let id = selectedProductId, let p = products.first(where: { $0.id == id }) { return p.name }
         return "Todos"
     }
     var accountMenuItems: [MenuItem] {
-        var r = [MenuItem(id: "all", name: "Todas as CAs") { [weak self] in self?.selectedAccountId = nil }]
+        var r = [MenuItem(id: "all", name: "Todas") { [weak self] in self?.selectedAccountId = nil }]
         r += accounts.map { a in MenuItem(id: a.id, name: a.name) { [weak self] in self?.selectedAccountId = a.id } }
         return r
     }
@@ -570,10 +543,7 @@ class DashboardViewModel: ObservableObject {
             Task { @MainActor in await self.loadSummary() }
         }
     }
-
-    func stopAutoRefresh() {
-        autoRefreshTimer?.invalidate(); autoRefreshTimer = nil
-    }
+    func stopAutoRefresh() { autoRefreshTimer?.invalidate(); autoRefreshTimer = nil }
 
     private let baseURL = DeviceManager.shared.baseURL
 
@@ -602,27 +572,20 @@ class DashboardViewModel: ObservableObject {
         let from: String; let to: String
         if isCustomPeriod { from = customFrom; to = customTo }
         else { let r = selectedPeriod.dateRange; from = r.from; to = r.to }
-
         var urlString = "\(baseURL)/dashboard/summary?from=\(from)&to=\(to)"
         if let pid = selectedProductId { urlString += "&productIds=\(pid)" }
         if let aid = selectedAccountId { urlString += "&adAccountIds=\(aid)" }
-
         guard let url = URL(string: urlString) else { isLoading = false; return }
         var req = URLRequest(url: url); req.setValue(deviceToken, forHTTPHeaderField: "X-Device-Token")
-
         guard let (data, response) = try? await URLSession.shared.data(for: req),
               (response as? HTTPURLResponse)?.statusCode == 200 else { isLoading = false; return }
-
         if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
             summary = DashboardSummary(json: json)
-            // Timestamp: only update for non-custom periods (matching desktop)
             if !isCustomPeriod {
                 let fmt = DateFormatter(); fmt.dateFormat = "HH:mm:ss"
                 fmt.timeZone = TimeZone(secondsFromGMT: -3 * 3600)
                 lastUpdated = fmt.string(from: Date())
-            } else {
-                lastUpdated = nil
-            }
+            } else { lastUpdated = nil }
         }
         isLoading = false
     }
@@ -630,25 +593,17 @@ class DashboardViewModel: ObservableObject {
 
 // MARK: - Data Models
 
-struct FilterItem: Codable, Identifiable {
-    let id: String
-    let name: String
-}
+struct FilterItem: Codable, Identifiable { let id: String; let name: String }
 
 struct DashboardSummary {
     let spend, grossRevenue, netRevenue, profit: Int
     let roas, roi, margin: Double
     let pendingOrders, pendingRevenue, approvedOrders: Int
     let refundedOrders, refundedRevenue, chargedbackOrders, chargedbackRevenue, returnedRevenue: Int
-    let totalOrders: Int
-    let refundRate, chargebackRate: Double
-    let arpu, cpa: Int
-    let leads: Int
-    let costPerLead: Int
-    let salesTax, totalTax, metaAdsTax, fees: Int
-    let productCosts, additionalExpenses: Int
-    let conversations: Int
-    let costPerConversation: Int
+    let totalOrders: Int; let refundRate, chargebackRate: Double
+    let arpu, cpa, leads, costPerLead: Int
+    let salesTax, totalTax, metaAdsTax, fees, productCosts, additionalExpenses: Int
+    let conversations, costPerConversation: Int
 
     init(json: [String: Any]) {
         spend = json["spend"] as? Int ?? 0
@@ -711,7 +666,6 @@ struct DashboardSummary {
     var additionalExpensesFormatted: String { fmtCurrency(additionalExpenses) }
     var conversationsFormatted: String { fmtInt(conversations) }
     var costPerConversationFormatted: String { fmtCurrency(costPerConversation) }
-
     var roasFormatted: String { String(format: "%.2f", roas) }
     var roiFormatted: String { String(format: "%.2f", roi) }
     var marginFormatted: String { String(format: "%.1f%%", margin * 100) }
