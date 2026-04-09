@@ -70,74 +70,49 @@ struct DashboardView: View {
     // MARK: - Toolbar
 
     private var toolbarSection: some View {
-        VStack(spacing: 10) {
-            // Row 1: Period selector + updated timestamp
-            HStack {
-                // Period dropdown
-                Menu {
+        VStack(spacing: 0) {
+            // Period pills
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 4) {
                     ForEach(DashboardPeriod.allCases, id: \.self) { period in
-                        Button(action: {
+                        periodPill(label: period.label, isActive: vm.selectedPeriod == period && !vm.isCustomPeriod) {
                             vm.selectedPeriod = period
                             vm.isCustomPeriod = false
                             Task { await vm.loadSummary() }
-                            // Start/stop auto-refresh based on period
                             if vm.periodIncludesToday { vm.startAutoRefresh() } else { vm.stopAutoRefresh() }
-                        }) {
-                            if vm.selectedPeriod == period && !vm.isCustomPeriod {
-                                Label(period.label, systemImage: "checkmark")
-                            } else {
-                                Text(period.label)
-                            }
                         }
                     }
-                    Divider()
-                    Button(action: { showCustomDate = true }) {
-                        if vm.isCustomPeriod {
-                            Label("Período...", systemImage: "checkmark")
-                        } else {
-                            Text("Período...")
-                        }
+                    // Custom period pill
+                    periodPill(
+                        label: vm.isCustomPeriod ? vm.periodDisplayLabel : "Período...",
+                        isActive: vm.isCustomPeriod
+                    ) {
+                        showCustomDate = true
                     }
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "calendar")
-                            .font(.system(size: 12))
-                            .foregroundColor(.mgAccent)
-                        Text(vm.periodDisplayLabel)
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.mgText)
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 8, weight: .bold))
-                            .foregroundColor(.mgText3)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
-                    .background(Color.white.opacity(0.04))
-                    .cornerRadius(7)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 7)
-                            .stroke(Color.mgBorder, lineWidth: 1)
-                    )
                 }
+            }
+            .padding(.bottom, 10)
 
-                Spacer()
-
-                // Updated timestamp
-                if let ts = vm.lastUpdated {
-                    Text(ts)
-                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+            // Updated timestamp
+            if let ts = vm.lastUpdated {
+                HStack {
+                    Spacer()
+                    Text("atualizado às \(ts)")
+                        .font(.system(size: 9, design: .monospaced))
                         .foregroundColor(.mgText3.opacity(0.5))
                 }
+                .padding(.bottom, 8)
             }
 
             Rectangle().fill(Color.mgBorder).frame(height: 1)
 
-            // Row 2: Filters
+            // Filters
             HStack(spacing: 0) {
                 filterChip(label: "Conta", value: vm.selectedAccountName, items: vm.accountMenuItems)
                 Rectangle().fill(Color.mgBorder).frame(width: 1, height: 32)
                 filterChip(label: "Produto", value: vm.selectedProductName, items: vm.productMenuItems)
             }
+            .padding(.top, 10)
         }
         .padding(12)
         .background(
@@ -148,6 +123,22 @@ struct DashboardView: View {
                         .stroke(Color.mgBorder, lineWidth: 1)
                 )
         )
+    }
+
+    private func periodPill(label: String, isActive: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.system(size: 11, weight: .medium))
+                .padding(.horizontal, 11)
+                .padding(.vertical, 5)
+                .background(isActive ? Color.mgAccent : Color.white.opacity(0.04))
+                .foregroundColor(isActive ? .white : .mgText2)
+                .cornerRadius(6)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(isActive ? Color.clear : Color.white.opacity(0.06), lineWidth: 1)
+                )
+        }
     }
 
     private func filterChip(label: String, value: String, items: [MenuItem]) -> some View {
@@ -244,6 +235,7 @@ struct CustomDateSheet: View {
     @Binding var isPresented: Bool
     @State private var fromDate = Date()
     @State private var toDate = Date()
+    @State private var lastToDay: Int = 0 // track day changes only
     @State private var validationError: String?
 
     private let brt = TimeZone(secondsFromGMT: -3 * 3600)!
@@ -263,9 +255,13 @@ struct CustomDateSheet: View {
                     DatePicker("Até", selection: $toDate, in: ...Date(), displayedComponents: [.date, .hourAndMinute])
                         .environment(\.timeZone, brt)
                         .onChange(of: toDate) { newVal in
-                            // Auto-set end time: if today → current time, else → 23:59
+                            // Only auto-set time when the DAY changes, not when user edits time
                             var calBRT = Calendar.current
                             calBRT.timeZone = brt
+                            let newDay = calBRT.ordinality(of: .day, in: .era, for: newVal) ?? 0
+                            guard newDay != lastToDay else { return }
+                            lastToDay = newDay
+
                             if calBRT.isDateInToday(newVal) {
                                 let now = Date()
                                 let h = calBRT.component(.hour, from: now)
@@ -323,8 +319,8 @@ struct CustomDateSheet: View {
             var calBRT = Calendar.current
             calBRT.timeZone = brt
             fromDate = calBRT.startOfDay(for: Date())
-            // Default end: now
             toDate = Date()
+            lastToDay = calBRT.ordinality(of: .day, in: .era, for: toDate) ?? 0
         }
     }
 }
