@@ -2,19 +2,34 @@ import SwiftUI
 import Combine
 import UIKit
 
-// MARK: - Color Constants
+// MARK: - Adaptive Color Constants (dark/light matching desktop CSS)
 
 extension Color {
-    static let mgBg = Color(red: 13/255, green: 15/255, blue: 24/255)
-    static let mgCard = Color(red: 18/255, green: 21/255, blue: 31/255)
-    static let mgBorder = Color(red: 37/255, green: 40/255, blue: 64/255)
-    static let mgAccent = Color(red: 108/255, green: 92/255, blue: 231/255)
-    static let mgText = Color(red: 221/255, green: 225/255, blue: 245/255)
-    static let mgText2 = Color(red: 122/255, green: 128/255, blue: 164/255)
-    static let mgText3 = Color(red: 92/255, green: 100/255, blue: 144/255)
-    static let mgGreen = Color(red: 0/255, green: 200/255, blue: 150/255)
-    static let mgAmber = Color(red: 244/255, green: 169/255, blue: 53/255)
-    static let mgRed = Color(red: 224/255, green: 108/255, blue: 117/255)
+    private static func adaptive(dark: (CGFloat, CGFloat, CGFloat), light: (CGFloat, CGFloat, CGFloat)) -> Color {
+        Color(UIColor { trait in
+            trait.userInterfaceStyle == .dark
+                ? UIColor(red: dark.0/255, green: dark.1/255, blue: dark.2/255, alpha: 1)
+                : UIColor(red: light.0/255, green: light.1/255, blue: light.2/255, alpha: 1)
+        })
+    }
+
+    // Backgrounds & surfaces
+    static let mgBg     = adaptive(dark: (13, 15, 24),    light: (244, 245, 250))   // #0d0f18 / #f4f5fa
+    static let mgCard   = adaptive(dark: (18, 21, 31),    light: (255, 255, 255))   // #12151f / #ffffff
+    static let mgBorder = adaptive(dark: (37, 40, 64),    light: (208, 211, 232))   // #252840 / #d0d3e8
+
+    // Accent
+    static let mgAccent = adaptive(dark: (108, 92, 231),  light: (91, 79, 214))    // #6c5ce7 / #5b4fd6
+
+    // Text
+    static let mgText   = adaptive(dark: (221, 225, 245), light: (27, 29, 46))     // #dde1f5 / #1b1d2e
+    static let mgText2  = adaptive(dark: (122, 128, 164), light: (85, 88, 120))    // #7a80a4 / #555878
+    static let mgText3  = adaptive(dark: (92, 100, 144),  light: (120, 128, 168))  // #5c6490 / #7880a8
+
+    // Status
+    static let mgGreen  = adaptive(dark: (0, 200, 150),   light: (0, 168, 126))    // #00c896 / #00a87e
+    static let mgAmber  = adaptive(dark: (244, 169, 53),   light: (184, 107, 0))    // #f4a935 / #b86b00
+    static let mgRed    = adaptive(dark: (224, 108, 117),  light: (192, 64, 74))    // #e06c75 / #c0404a
 }
 
 // MARK: - Dashboard View

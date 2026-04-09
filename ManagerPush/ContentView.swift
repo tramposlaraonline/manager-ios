@@ -40,21 +40,6 @@ struct MainTabView: View {
             .tag(2)
         }
         .accentColor(.mgAccent)
-        .preferredColorScheme(.dark)
-        .onAppear {
-            let appearance = UITabBarAppearance()
-            appearance.backgroundColor = UIColor(Color.mgCard)
-            appearance.shadowColor = UIColor(Color.mgBorder)
-            // Smaller icons
-            let itemAppearance = UITabBarItemAppearance()
-            itemAppearance.normal.iconColor = UIColor(Color.mgText3)
-            itemAppearance.selected.iconColor = UIColor(Color.mgAccent)
-            appearance.stackedLayoutAppearance = itemAppearance
-            appearance.inlineLayoutAppearance = itemAppearance
-            appearance.compactInlineLayoutAppearance = itemAppearance
-            UITabBar.appearance().standardAppearance = appearance
-            UITabBar.appearance().scrollEdgeAppearance = appearance
-        }
     }
 }
 
@@ -147,7 +132,6 @@ struct PairingView: View {
             Spacer()
         }
         .background(Color.mgBg.ignoresSafeArea())
-        .preferredColorScheme(.dark)
     }
 }
 
