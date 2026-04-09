@@ -21,13 +21,13 @@ struct MainTabView: View {
         TabView(selection: $selectedTab) {
             DashboardView()
                 .tabItem {
-                    Image(systemName: "chart.bar.fill").environment(\.symbolVariants, .fill)
+                    Image(systemName: "chart.bar")
                 }
                 .tag(0)
 
             NotificationsPlaceholderView()
                 .tabItem {
-                    Image(systemName: "bell").environment(\.symbolVariants, .none)
+                    Image(systemName: "bell")
                 }
                 .tag(1)
 
@@ -35,7 +35,7 @@ struct MainTabView: View {
                 SettingsView()
             }
             .tabItem {
-                Image(systemName: "gearshape").environment(\.symbolVariants, .none)
+                Image(systemName: "gearshape")
             }
             .tag(2)
         }

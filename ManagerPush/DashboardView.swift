@@ -22,16 +22,15 @@ extension Color {
 struct DashboardView: View {
     @StateObject private var vm = DashboardViewModel()
     @StateObject private var dm = DeviceManager.shared
+    @State private var showCustomDate = false
 
     var body: some View {
         List {
-            // Toolbar: period + filters
             toolbarSection
-                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 14, trailing: 16))
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 16, trailing: 16))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
 
-            // Metrics
             metricsContent
                 .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
                 .listRowBackground(Color.clear)
@@ -61,58 +60,80 @@ struct DashboardView: View {
                 }
             }
         }
+        .sheet(isPresented: $showCustomDate) {
+            CustomDateSheet(vm: vm, isPresented: $showCustomDate)
+        }
     }
 
     // MARK: - Toolbar
 
     private var toolbarSection: some View {
-        VStack(spacing: 0) {
-            // Period pills + updated timestamp
-            HStack(spacing: 0) {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 4) {
-                        ForEach(DashboardPeriod.allCases, id: \.self) { period in
-                            Button(action: {
-                                vm.selectedPeriod = period
-                                Task { await vm.loadSummary() }
-                            }) {
+        VStack(spacing: 10) {
+            // Row 1: Period selector + updated timestamp
+            HStack {
+                // Period dropdown
+                Menu {
+                    ForEach(DashboardPeriod.allCases, id: \.self) { period in
+                        Button(action: {
+                            vm.selectedPeriod = period
+                            vm.isCustomPeriod = false
+                            Task { await vm.loadSummary() }
+                        }) {
+                            if vm.selectedPeriod == period && !vm.isCustomPeriod {
+                                Label(period.label, systemImage: "checkmark")
+                            } else {
                                 Text(period.label)
-                                    .font(.system(size: 11, weight: .medium))
-                                    .padding(.horizontal, 11)
-                                    .padding(.vertical, 5)
-                                    .background(vm.selectedPeriod == period ? Color.mgAccent : Color.white.opacity(0.04))
-                                    .foregroundColor(vm.selectedPeriod == period ? .white : .mgText2)
-                                    .cornerRadius(6)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 6)
-                                            .stroke(vm.selectedPeriod == period ? Color.clear : Color.white.opacity(0.06), lineWidth: 1)
-                                    )
                             }
                         }
                     }
+                    Divider()
+                    Button(action: { showCustomDate = true }) {
+                        if vm.isCustomPeriod {
+                            Label("Período...", systemImage: "checkmark")
+                        } else {
+                            Text("Período...")
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 12))
+                            .foregroundColor(.mgAccent)
+                        Text(vm.periodDisplayLabel)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.mgText)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(.mgText3)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(Color.white.opacity(0.04))
+                    .cornerRadius(7)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 7)
+                            .stroke(Color.mgBorder, lineWidth: 1)
+                    )
                 }
-            }
-            .padding(.bottom, 8)
 
-            // Updated timestamp
-            if let ts = vm.lastUpdated {
-                HStack {
-                    Spacer()
+                Spacer()
+
+                // Updated timestamp
+                if let ts = vm.lastUpdated {
                     Text(ts)
-                        .font(.system(size: 9, design: .monospaced))
-                        .foregroundColor(.mgText3.opacity(0.6))
+                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                        .foregroundColor(.mgText3.opacity(0.5))
                 }
-                .padding(.bottom, 8)
             }
 
             Rectangle().fill(Color.mgBorder).frame(height: 1)
 
+            // Row 2: Filters
             HStack(spacing: 0) {
                 filterChip(label: "Conta", value: vm.selectedAccountName, items: vm.accountMenuItems)
                 Rectangle().fill(Color.mgBorder).frame(width: 1, height: 32)
                 filterChip(label: "Produto", value: vm.selectedProductName, items: vm.productMenuItems)
             }
-            .padding(.top, 10)
         }
         .padding(12)
         .background(
@@ -166,8 +187,8 @@ struct DashboardView: View {
     private var metricsContent: some View {
         ZStack {
             if let s = vm.summary {
-                let w = UIScreen.main.bounds.width - 32 // 16px padding each side
-                VStack(spacing: 12) {
+                let w = UIScreen.main.bounds.width - 32
+                VStack(spacing: 14) {
                     MetricCard(label: "Gastos com Anúncios", value: s.spendFormatted)
                     MetricCard(label: "Faturamento Bruto", value: s.grossRevenueFormatted)
                     MetricCard(label: "Faturamento Líquido", value: s.netRevenueFormatted)
@@ -212,6 +233,57 @@ struct DashboardView: View {
     }
 }
 
+// MARK: - Custom Date Sheet
+
+struct CustomDateSheet: View {
+    @ObservedObject var vm: DashboardViewModel
+    @Binding var isPresented: Bool
+    @State private var fromDate = Date()
+    @State private var toDate = Date()
+
+    private let brt = TimeZone(secondsFromGMT: -3 * 3600)!
+
+    var body: some View {
+        NavigationView {
+            Form {
+                Section {
+                    DatePicker("De", selection: $fromDate, displayedComponents: [.date, .hourAndMinute])
+                        .environment(\.timeZone, brt)
+                    DatePicker("Até", selection: $toDate, displayedComponents: [.date, .hourAndMinute])
+                        .environment(\.timeZone, brt)
+                } header: {
+                    Text("Período personalizado")
+                }
+            }
+            .navigationTitle("Período")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancelar") { isPresented = false }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Aplicar") {
+                        let fmt = ISO8601DateFormatter()
+                        fmt.timeZone = TimeZone(secondsFromGMT: 0)
+                        vm.customFrom = fmt.string(from: fromDate)
+                        vm.customTo = fmt.string(from: toDate)
+                        vm.isCustomPeriod = true
+                        isPresented = false
+                        Task { await vm.loadSummary() }
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium])
+        .onAppear {
+            var calBRT = Calendar.current
+            calBRT.timeZone = brt
+            fromDate = calBRT.startOfDay(for: Date())
+            toDate = Date()
+        }
+    }
+}
+
 // MARK: - Metric Card
 
 struct MetricCard: View {
@@ -241,7 +313,6 @@ struct MetricCard: View {
                     .fill(Color.mgCard)
                 RoundedRectangle(cornerRadius: 9)
                     .stroke(Color.mgBorder, lineWidth: 1)
-                // Gradient clipped to full rounded rect so corners aren't sharp
                 LinearGradient(
                     gradient: Gradient(colors: [Color.mgAccent.opacity(0.6), Color.clear]),
                     startPoint: .leading,
@@ -254,7 +325,7 @@ struct MetricCard: View {
     }
 }
 
-// MARK: - Period Enum (matching desktop: Hoje, Ontem, Semana, Sem. passada, Mês, Mês passado, Tudo)
+// MARK: - Period Enum
 
 enum DashboardPeriod: CaseIterable {
     case today, yesterday, week, lastweek, month, lastmonth, all
@@ -337,6 +408,9 @@ class DashboardViewModel: ObservableObject {
     var deviceToken: String = ""
 
     @Published var selectedPeriod: DashboardPeriod = .today
+    @Published var isCustomPeriod = false
+    @Published var customFrom: String = ""
+    @Published var customTo: String = ""
     @Published var selectedProductId: String?
     @Published var selectedAccountId: String?
     @Published var products: [FilterItem] = []
@@ -344,6 +418,22 @@ class DashboardViewModel: ObservableObject {
     @Published var summary: DashboardSummary?
     @Published var isLoading = false
     @Published var lastUpdated: String?
+
+    var periodDisplayLabel: String {
+        if isCustomPeriod {
+            // Show short date range
+            let fmt = DateFormatter()
+            fmt.dateFormat = "dd/MM"
+            fmt.timeZone = TimeZone(secondsFromGMT: -3 * 3600)
+            let isoFmt = ISO8601DateFormatter()
+            isoFmt.timeZone = TimeZone(secondsFromGMT: 0)
+            if let f = isoFmt.date(from: customFrom), let t = isoFmt.date(from: customTo) {
+                return "\(fmt.string(from: f)) — \(fmt.string(from: t))"
+            }
+            return "Personalizado"
+        }
+        return selectedPeriod.label
+    }
 
     var selectedAccountName: String {
         if let id = selectedAccountId, let acc = accounts.first(where: { $0.id == id }) { return acc.name }
@@ -395,8 +485,19 @@ class DashboardViewModel: ObservableObject {
 
     func loadSummary() async {
         isLoading = true
-        let range = selectedPeriod.dateRange
-        var urlString = "\(baseURL)/dashboard/summary?from=\(range.from)&to=\(range.to)"
+
+        let from: String
+        let to: String
+        if isCustomPeriod {
+            from = customFrom
+            to = customTo
+        } else {
+            let range = selectedPeriod.dateRange
+            from = range.from
+            to = range.to
+        }
+
+        var urlString = "\(baseURL)/dashboard/summary?from=\(from)&to=\(to)"
         if let pid = selectedProductId { urlString += "&productIds=\(pid)" }
         if let aid = selectedAccountId { urlString += "&adAccountIds=\(aid)" }
 
