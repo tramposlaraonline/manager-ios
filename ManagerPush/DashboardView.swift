@@ -24,28 +24,21 @@ struct DashboardView: View {
     @StateObject private var dm = DeviceManager.shared
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                // Toolbar: period + filters
-                toolbarSection
+        List {
+            // Toolbar: period + filters
+            toolbarSection
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 6, trailing: 16))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
 
-                // Last updated
-                if let ts = vm.lastUpdated {
-                    HStack {
-                        Spacer()
-                        Text("atualizado às \(ts)")
-                            .font(.system(size: 10))
-                            .foregroundColor(.mgText3)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 4)
-                }
-
-                // Metrics
-                metricsSection
-            }
-            .padding(.bottom, 20)
+            // Metrics
+            metricsContent
+                .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
         .refreshable {
             await vm.loadSummary()
         }
@@ -74,29 +67,43 @@ struct DashboardView: View {
 
     private var toolbarSection: some View {
         VStack(spacing: 0) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 4) {
-                    ForEach(DashboardPeriod.allCases, id: \.self) { period in
-                        Button(action: {
-                            vm.selectedPeriod = period
-                            Task { await vm.loadSummary() }
-                        }) {
-                            Text(period.label)
-                                .font(.system(size: 11, weight: .medium))
-                                .padding(.horizontal, 11)
-                                .padding(.vertical, 5)
-                                .background(vm.selectedPeriod == period ? Color.mgAccent : Color.white.opacity(0.04))
-                                .foregroundColor(vm.selectedPeriod == period ? .white : .mgText2)
-                                .cornerRadius(6)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 6)
-                                        .stroke(vm.selectedPeriod == period ? Color.clear : Color.white.opacity(0.06), lineWidth: 1)
-                                )
+            // Period pills + updated timestamp
+            HStack(spacing: 0) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 4) {
+                        ForEach(DashboardPeriod.allCases, id: \.self) { period in
+                            Button(action: {
+                                vm.selectedPeriod = period
+                                Task { await vm.loadSummary() }
+                            }) {
+                                Text(period.label)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .padding(.horizontal, 11)
+                                    .padding(.vertical, 5)
+                                    .background(vm.selectedPeriod == period ? Color.mgAccent : Color.white.opacity(0.04))
+                                    .foregroundColor(vm.selectedPeriod == period ? .white : .mgText2)
+                                    .cornerRadius(6)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .stroke(vm.selectedPeriod == period ? Color.clear : Color.white.opacity(0.06), lineWidth: 1)
+                                    )
+                            }
                         }
                     }
                 }
             }
-            .padding(.bottom, 10)
+            .padding(.bottom, 8)
+
+            // Updated timestamp
+            if let ts = vm.lastUpdated {
+                HStack {
+                    Spacer()
+                    Text(ts)
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundColor(.mgText3.opacity(0.6))
+                }
+                .padding(.bottom, 8)
+            }
 
             Rectangle().fill(Color.mgBorder).frame(height: 1)
 
@@ -116,9 +123,6 @@ struct DashboardView: View {
                         .stroke(Color.mgBorder, lineWidth: 1)
                 )
         )
-        .padding(.horizontal, 16)
-        .padding(.top, 8)
-        .padding(.bottom, 14)
     }
 
     private func filterChip(label: String, value: String, items: [MenuItem]) -> some View {
@@ -153,89 +157,53 @@ struct DashboardView: View {
 
     // MARK: - Metrics
 
-    private var metricsSection: some View {
-        VStack(spacing: 10) {
-            if vm.isLoading && vm.summary == nil {
-                // Skeleton loading
-                ForEach(0..<5, id: \.self) { _ in
-                    SkeletonCard()
-                }
-                HStack(spacing: 10) {
-                    SkeletonCard(); SkeletonCard(); SkeletonCard()
-                }
-                ForEach(0..<3, id: \.self) { _ in
-                    SkeletonCard()
-                }
-            } else if let s = vm.summary {
-                MetricCard(label: "Gastos com Anúncios", value: s.spendFormatted)
-                MetricCard(label: "Faturamento Bruto", value: s.grossRevenueFormatted)
-                MetricCard(label: "Faturamento Líquido", value: s.netRevenueFormatted)
-                MetricCard(label: "Lucro", value: s.profitFormatted, valueColor: s.profitColor)
+    private var metricsContent: some View {
+        ZStack {
+            if let s = vm.summary {
+                VStack(spacing: 10) {
+                    MetricCard(label: "Gastos com Anúncios", value: s.spendFormatted)
+                    MetricCard(label: "Faturamento Bruto", value: s.grossRevenueFormatted)
+                    MetricCard(label: "Faturamento Líquido", value: s.netRevenueFormatted)
+                    MetricCard(label: "Lucro", value: s.profitFormatted, valueColor: s.profitColor)
 
-                HStack(spacing: 10) {
-                    MetricCard(label: "ROAS", value: s.roasFormatted, valueColor: s.roasColor, valueSize: 19)
-                    MetricCard(label: "ROI", value: s.roiFormatted, valueColor: s.roiColor, valueSize: 19)
-                    MetricCard(label: "Margem", value: s.marginFormatted, valueColor: s.marginColor, valueSize: 19)
-                }
+                    HStack(spacing: 10) {
+                        MetricCard(label: "ROAS", value: s.roasFormatted, valueColor: s.roasColor, valueSize: 19)
+                        MetricCard(label: "ROI", value: s.roiFormatted, valueColor: s.roiColor, valueSize: 19)
+                        MetricCard(label: "Margem", value: s.marginFormatted, valueColor: s.marginColor, valueSize: 19)
+                    }
 
-                MetricCard(label: "Vendas Pendentes", value: s.pendingRevenueFormatted)
+                    MetricCard(label: "Vendas Pendentes", value: s.pendingRevenueFormatted)
 
-                // Reembolsadas 70% | Reembolso % 30%
-                GeometryReader { geo in
+                    // Reembolsadas 70% | Reembolso % 30%
                     HStack(spacing: 10) {
                         MetricCard(label: "Vendas Reembolsadas", value: s.refundedRevenueFormatted)
-                            .frame(width: (geo.size.width - 10) * 0.7)
+                            .layoutPriority(7)
                         MetricCard(label: "Reembolso", value: s.refundRateFormatted)
-                            .frame(width: (geo.size.width - 10) * 0.3)
+                            .layoutPriority(3)
                     }
-                }
-                .frame(height: 72)
 
-                // Chargeback 70% | Chargeback % 30%
-                GeometryReader { geo in
+                    // Chargeback 70% | Chargeback % 30%
                     HStack(spacing: 10) {
                         MetricCard(label: "Vendas Chargeback", value: s.chargedbackRevenueFormatted)
-                            .frame(width: (geo.size.width - 10) * 0.7)
+                            .layoutPriority(7)
                         MetricCard(label: "Chargeback", value: s.chargebackRateFormatted)
-                            .frame(width: (geo.size.width - 10) * 0.3)
+                            .layoutPriority(3)
                     }
-                }
-                .frame(height: 72)
 
-                MetricCard(label: "Vendas Devolvidas", value: s.returnedRevenueFormatted)
+                    MetricCard(label: "Vendas Devolvidas", value: s.returnedRevenueFormatted)
+                }
+                .opacity(vm.isLoading ? 0.4 : 1.0)
+                .animation(.easeInOut(duration: 0.2), value: vm.isLoading)
+            }
+
+            if vm.isLoading {
+                ProgressView()
+                    .tint(.mgAccent)
+                    .scaleEffect(1.2)
+                    .padding(.top, vm.summary == nil ? 60 : 0)
             }
         }
-        .padding(.horizontal, 16)
-    }
-}
-
-// MARK: - Skeleton Loading Card
-
-struct SkeletonCard: View {
-    @State private var shimmer = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            RoundedRectangle(cornerRadius: 3)
-                .fill(Color.mgBorder.opacity(0.5))
-                .frame(width: 100, height: 10)
-            RoundedRectangle(cornerRadius: 4)
-                .fill(Color.mgBorder.opacity(0.4))
-                .frame(width: 150, height: 22)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 9)
-                .fill(Color.mgCard)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 9)
-                        .stroke(Color.mgBorder, lineWidth: 1)
-                )
-        )
-        .opacity(shimmer ? 0.5 : 1.0)
-        .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: shimmer)
-        .onAppear { shimmer = true }
+        .padding(.bottom, 10)
     }
 }
 
