@@ -38,9 +38,7 @@ struct DashboardView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .refreshable {
-            await vm.loadSummary()
-        }
+        .refreshable { await vm.loadSummary() }
         .background(Color.mgBg)
         .onAppear {
             vm.setupAutoRefresh()
@@ -59,6 +57,7 @@ struct DashboardView: View {
                 Task {
                     await vm.loadFilters()
                     await vm.loadSummary()
+                    if vm.periodIncludesToday { vm.startAutoRefresh() }
                 }
             }
         }
@@ -71,20 +70,29 @@ struct DashboardView: View {
 
     private var toolbarSection: some View {
         VStack(spacing: 0) {
-            // Period pills
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 4) {
-                    ForEach(DashboardPeriod.allCases, id: \.self) { period in
-                        periodPill(label: period.label, isActive: vm.selectedPeriod == period && !vm.isCustomPeriod) {
-                            vm.selectedPeriod = period
-                            vm.isCustomPeriod = false
+            // Period selector — segmented style
+            VStack(spacing: 8) {
+                // Row 1: main periods
+                HStack(spacing: 0) {
+                    ForEach([DashboardPeriod.today, .yesterday, .week, .lastweek], id: \.self) { period in
+                        segmentButton(period.label, isActive: vm.selectedPeriod == period && !vm.isCustomPeriod) {
+                            vm.selectedPeriod = period; vm.isCustomPeriod = false
                             Task { await vm.loadSummary() }
                             if vm.periodIncludesToday { vm.startAutoRefresh() } else { vm.stopAutoRefresh() }
                         }
                     }
-                    // Custom period pill
-                    periodPill(
-                        label: vm.isCustomPeriod ? vm.periodDisplayLabel : "Período...",
+                }
+                // Row 2: remaining + custom
+                HStack(spacing: 0) {
+                    ForEach([DashboardPeriod.month, .lastmonth, .all], id: \.self) { period in
+                        segmentButton(period.label, isActive: vm.selectedPeriod == period && !vm.isCustomPeriod) {
+                            vm.selectedPeriod = period; vm.isCustomPeriod = false
+                            Task { await vm.loadSummary() }
+                            if vm.periodIncludesToday { vm.startAutoRefresh() } else { vm.stopAutoRefresh() }
+                        }
+                    }
+                    segmentButton(
+                        vm.isCustomPeriod ? vm.periodDisplayLabel : "Período...",
                         isActive: vm.isCustomPeriod
                     ) {
                         showCustomDate = true
@@ -93,61 +101,56 @@ struct DashboardView: View {
             }
             .padding(.bottom, 10)
 
-            // Updated timestamp
-            if let ts = vm.lastUpdated {
-                HStack {
-                    Spacer()
-                    Text("atualizado às \(ts)")
-                        .font(.system(size: 9, design: .monospaced))
-                        .foregroundColor(.mgText3.opacity(0.5))
-                }
-                .padding(.bottom, 8)
-            }
-
             Rectangle().fill(Color.mgBorder).frame(height: 1)
 
-            // Filters
+            // Filters + timestamp
             HStack(spacing: 0) {
                 filterChip(label: "Conta", value: vm.selectedAccountName, items: vm.accountMenuItems)
                 Rectangle().fill(Color.mgBorder).frame(width: 1, height: 32)
                 filterChip(label: "Produto", value: vm.selectedProductName, items: vm.productMenuItems)
             }
             .padding(.top, 10)
+
+            // Timestamp — below filters, right-aligned, only for live periods
+            if let ts = vm.lastUpdated, !vm.isCustomPeriod {
+                HStack {
+                    Spacer()
+                    Text("atualizado às \(ts)")
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundColor(.mgText3.opacity(0.4))
+                }
+                .padding(.top, 8)
+            }
         }
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 10)
                 .fill(Color.mgCard)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color.mgBorder, lineWidth: 1)
-                )
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.mgBorder, lineWidth: 1))
         )
     }
 
-    private func periodPill(label: String, isActive: Bool, action: @escaping () -> Void) -> some View {
+    private func segmentButton(_ label: String, isActive: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(label)
                 .font(.system(size: 11, weight: .medium))
-                .padding(.horizontal, 11)
-                .padding(.vertical, 5)
-                .background(isActive ? Color.mgAccent : Color.white.opacity(0.04))
-                .foregroundColor(isActive ? .white : .mgText2)
-                .cornerRadius(6)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(isActive ? Color.clear : Color.white.opacity(0.06), lineWidth: 1)
-                )
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+                .background(isActive ? Color.mgAccent : Color.clear)
+                .foregroundColor(isActive ? .white : .mgText3)
+                .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .background(Color.white.opacity(isActive ? 0 : 0.03))
+        .overlay(
+            Rectangle().stroke(Color.mgBorder.opacity(0.5), lineWidth: 0.5)
+        )
     }
 
     private func filterChip(label: String, value: String, items: [MenuItem]) -> some View {
         Menu {
             ForEach(items, id: \.id) { item in
-                Button(action: {
-                    item.action()
-                    Task { await vm.loadSummary() }
-                }) {
+                Button(action: { item.action(); Task { await vm.loadSummary() } }) {
                     if item.name == value {
                         Label(item.name, systemImage: "checkmark")
                     } else {
@@ -184,34 +187,64 @@ struct DashboardView: View {
             if let s = vm.summary {
                 let w = UIScreen.main.bounds.width - 32
                 VStack(spacing: 14) {
+                    // Row 1
                     MetricCard(label: "Gastos com Anúncios", value: s.spendFormatted)
                     MetricCard(label: "Faturamento Bruto", value: s.grossRevenueFormatted)
                     MetricCard(label: "Faturamento Líquido", value: s.netRevenueFormatted)
-                    MetricCard(label: "Lucro", value: s.profitFormatted, valueColor: s.profitColor)
 
+                    // Row 2
+                    MetricCard(label: "Lucro", value: s.profitFormatted, valueColor: s.profitColor)
                     HStack(spacing: 10) {
                         MetricCard(label: "ROAS", value: s.roasFormatted, valueColor: s.roasColor, valueSize: 19)
                         MetricCard(label: "ROI", value: s.roiFormatted, valueColor: s.roiColor, valueSize: 19)
                         MetricCard(label: "Margem", value: s.marginFormatted, valueColor: s.marginColor, valueSize: 19)
                     }
-
                     MetricCard(label: "Vendas Pendentes", value: s.pendingRevenueFormatted)
 
+                    // Row 3: ARPU, CPA, Leads, Custo por Lead
+                    HStack(spacing: 10) {
+                        MetricCard(label: "ARPU", value: s.arpuFormatted, valueSize: 17)
+                        MetricCard(label: "CPA", value: s.cpaFormatted, valueSize: 17)
+                    }
+                    HStack(spacing: 10) {
+                        MetricCard(label: "Leads", value: s.leadsFormatted, valueSize: 17)
+                        MetricCard(label: "Custo por Lead", value: s.costPerLeadFormatted, valueSize: 17)
+                    }
+
+                    // Row 4: Impostos e Taxas
+                    HStack(spacing: 10) {
+                        MetricCard(label: "Imp. sobre Vendas", value: s.salesTaxFormatted, valueSize: 17)
+                        MetricCard(label: "Imp. Total", value: s.totalTaxFormatted, valueSize: 17)
+                    }
+                    HStack(spacing: 10) {
+                        MetricCard(label: "Imp. Meta Ads", value: s.metaAdsTaxFormatted, valueSize: 17)
+                        MetricCard(label: "Taxas", value: s.feesFormatted, valueSize: 17)
+                    }
+
+                    // Row 5: Reembolso, Chargeback, Custos
                     HStack(spacing: 10) {
                         MetricCard(label: "Vendas Reembolsadas", value: s.refundedRevenueFormatted)
                             .frame(width: (w - 10) * 0.7)
                         MetricCard(label: "Reembolso", value: s.refundRateFormatted)
                             .frame(width: (w - 10) * 0.3)
                     }
-
                     HStack(spacing: 10) {
                         MetricCard(label: "Vendas Chargeback", value: s.chargedbackRevenueFormatted)
                             .frame(width: (w - 10) * 0.7)
                         MetricCard(label: "Chargeback", value: s.chargebackRateFormatted)
                             .frame(width: (w - 10) * 0.3)
                     }
+                    HStack(spacing: 10) {
+                        MetricCard(label: "Custos de Produto", value: s.productCostsFormatted)
+                        MetricCard(label: "Despesas Adicionais", value: s.additionalExpensesFormatted)
+                    }
 
+                    // Row 6: Devolvidas, Conversas
                     MetricCard(label: "Vendas Devolvidas", value: s.returnedRevenueFormatted)
+                    HStack(spacing: 10) {
+                        MetricCard(label: "Conversas", value: s.conversationsFormatted, valueSize: 17)
+                        MetricCard(label: "Custo por Conversa", value: s.costPerConversationFormatted, valueSize: 17)
+                    }
                 }
                 .opacity(vm.isLoading ? 0.4 : 1.0)
                 .animation(.easeInOut(duration: 0.2), value: vm.isLoading)
@@ -235,16 +268,10 @@ struct CustomDateSheet: View {
     @Binding var isPresented: Bool
     @State private var fromDate = Date()
     @State private var toDate = Date()
-    @State private var lastToDay: Int = 0 // track day changes only
+    @State private var lastToDay: Int = 0
     @State private var validationError: String?
 
     private let brt = TimeZone(secondsFromGMT: -3 * 3600)!
-
-    private var isToDateToday: Bool {
-        var calBRT = Calendar.current
-        calBRT.timeZone = brt
-        return calBRT.isDateInToday(toDate)
-    }
 
     var body: some View {
         NavigationView {
@@ -255,35 +282,29 @@ struct CustomDateSheet: View {
                     DatePicker("Até", selection: $toDate, in: ...Date(), displayedComponents: [.date, .hourAndMinute])
                         .environment(\.timeZone, brt)
                         .onChange(of: toDate) { newVal in
-                            // Only auto-set time when the DAY changes, not when user edits time
                             var calBRT = Calendar.current
                             calBRT.timeZone = brt
                             let newDay = calBRT.ordinality(of: .day, in: .era, for: newVal) ?? 0
                             guard newDay != lastToDay else { return }
                             lastToDay = newDay
-
                             if calBRT.isDateInToday(newVal) {
                                 let now = Date()
-                                let h = calBRT.component(.hour, from: now)
-                                let m = calBRT.component(.minute, from: now)
                                 var comps = calBRT.dateComponents([.year, .month, .day], from: newVal)
-                                comps.hour = h; comps.minute = m; comps.second = 0
-                                if let adjusted = calBRT.date(from: comps) { toDate = adjusted }
+                                comps.hour = calBRT.component(.hour, from: now)
+                                comps.minute = calBRT.component(.minute, from: now)
+                                comps.second = 0
+                                if let adj = calBRT.date(from: comps) { toDate = adj }
                             } else {
                                 var comps = calBRT.dateComponents([.year, .month, .day], from: newVal)
                                 comps.hour = 23; comps.minute = 59; comps.second = 59
-                                if let adjusted = calBRT.date(from: comps) { toDate = adjusted }
+                                if let adj = calBRT.date(from: comps) { toDate = adj }
                             }
                         }
-                } header: {
-                    Text("Período personalizado")
-                }
+                } header: { Text("Período personalizado") }
 
                 if let err = validationError {
                     Section {
-                        Text(err)
-                            .font(.system(size: 13))
-                            .foregroundColor(.mgRed)
+                        Text(err).font(.system(size: 13)).foregroundColor(.mgRed)
                     }
                 }
             }
@@ -295,12 +316,10 @@ struct CustomDateSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Aplicar") {
-                        // Validation: from must be before to
                         if fromDate >= toDate {
                             validationError = "A data final deve ser posterior à data inicial."
                             return
                         }
-                        validationError = nil
                         let fmt = ISO8601DateFormatter()
                         fmt.timeZone = TimeZone(secondsFromGMT: 0)
                         vm.customFrom = fmt.string(from: fromDate)
@@ -308,8 +327,7 @@ struct CustomDateSheet: View {
                         vm.isCustomPeriod = true
                         isPresented = false
                         Task { await vm.loadSummary() }
-                        // Custom period including today → auto-refresh, else stop
-                        if isToDateToday { vm.startAutoRefresh() } else { vm.stopAutoRefresh() }
+                        vm.stopAutoRefresh() // custom periods don't auto-refresh
                     }
                 }
             }
@@ -339,7 +357,6 @@ struct MetricCard: View {
                 .font(.system(size: 9.5, weight: .medium, design: .monospaced))
                 .foregroundColor(.mgText2)
                 .tracking(1)
-
             Text(value)
                 .font(.system(size: valueSize, weight: .bold, design: .monospaced))
                 .foregroundColor(valueColor)
@@ -350,14 +367,11 @@ struct MetricCard: View {
         .padding(14)
         .background(
             ZStack(alignment: .top) {
-                RoundedRectangle(cornerRadius: 9)
-                    .fill(Color.mgCard)
-                RoundedRectangle(cornerRadius: 9)
-                    .stroke(Color.mgBorder, lineWidth: 1)
+                RoundedRectangle(cornerRadius: 9).fill(Color.mgCard)
+                RoundedRectangle(cornerRadius: 9).stroke(Color.mgBorder, lineWidth: 1)
                 LinearGradient(
                     gradient: Gradient(colors: [Color.mgAccent.opacity(0.6), Color.clear]),
-                    startPoint: .leading,
-                    endPoint: .trailing
+                    startPoint: .leading, endPoint: .trailing
                 )
                 .frame(height: 2)
                 .clipShape(RoundedRectangle(cornerRadius: 9))
@@ -390,17 +404,12 @@ enum DashboardPeriod: CaseIterable {
         let now = Date()
         let todayStart = calBRT.startOfDay(for: now)
         let day: TimeInterval = 86400
-
-        let from: Date
-        let to: Date
-
+        let from: Date; let to: Date
         switch self {
         case .today:
-            from = todayStart
-            to = Date(timeInterval: day - 1, since: todayStart)
+            from = todayStart; to = Date(timeInterval: day - 1, since: todayStart)
         case .yesterday:
-            from = Date(timeInterval: -day, since: todayStart)
-            to = Date(timeInterval: -1, since: todayStart)
+            from = Date(timeInterval: -day, since: todayStart); to = Date(timeInterval: -1, since: todayStart)
         case .week:
             let wd = calBRT.component(.weekday, from: todayStart)
             from = calBRT.date(byAdding: .day, value: -(wd - 1), to: todayStart)!
@@ -412,8 +421,7 @@ enum DashboardPeriod: CaseIterable {
         case .month:
             var c = calBRT.dateComponents([.year, .month], from: now)
             c.day = 1; c.hour = 0; c.minute = 0; c.second = 0
-            from = calBRT.date(from: c)!
-            to = Date(timeInterval: day - 1, since: todayStart)
+            from = calBRT.date(from: c)!; to = Date(timeInterval: day - 1, since: todayStart)
         case .lastmonth:
             var c = calBRT.dateComponents([.year, .month], from: now)
             c.month! -= 1; c.day = 1; c.hour = 0; c.minute = 0; c.second = 0
@@ -422,14 +430,11 @@ enum DashboardPeriod: CaseIterable {
             e.day = 1; e.hour = 0; e.minute = 0; e.second = 0
             to = Date(timeInterval: -1, since: calBRT.date(from: e)!)
         case .all:
-            let fmt2 = ISO8601DateFormatter()
-            fmt2.timeZone = TimeZone(secondsFromGMT: 0)
-            from = fmt2.date(from: "2020-01-01T03:00:00Z")!
+            let f = ISO8601DateFormatter(); f.timeZone = TimeZone(secondsFromGMT: 0)
+            from = f.date(from: "2020-01-01T03:00:00Z")!
             to = Date(timeInterval: day - 1, since: todayStart)
         }
-
-        let fmt = ISO8601DateFormatter()
-        fmt.timeZone = TimeZone(secondsFromGMT: 0)
+        let fmt = ISO8601DateFormatter(); fmt.timeZone = TimeZone(secondsFromGMT: 0)
         return (fmt.string(from: from), fmt.string(from: to))
     }
 }
@@ -464,26 +469,53 @@ class DashboardViewModel: ObservableObject {
     private var backgroundedAt: Date?
     private var cancellables = Set<AnyCancellable>()
 
-    // Auto-refresh periods (those that include today)
     var periodIncludesToday: Bool {
-        if isCustomPeriod { return true } // assume custom may include today
+        if isCustomPeriod { return false }
         return [.today, .week, .month, .all].contains(selectedPeriod)
     }
 
+    var periodDisplayLabel: String {
+        if isCustomPeriod {
+            let fmt = DateFormatter(); fmt.dateFormat = "dd/MM"
+            fmt.timeZone = TimeZone(secondsFromGMT: -3 * 3600)
+            let iso = ISO8601DateFormatter(); iso.timeZone = TimeZone(secondsFromGMT: 0)
+            if let f = iso.date(from: customFrom), let t = iso.date(from: customTo) {
+                return "\(fmt.string(from: f)) — \(fmt.string(from: t))"
+            }
+            return "Personalizado"
+        }
+        return selectedPeriod.label
+    }
+
+    var selectedAccountName: String {
+        if let id = selectedAccountId, let a = accounts.first(where: { $0.id == id }) { return a.name }
+        return "Todas as CAs"
+    }
+    var selectedProductName: String {
+        if let id = selectedProductId, let p = products.first(where: { $0.id == id }) { return p.name }
+        return "Todos"
+    }
+    var accountMenuItems: [MenuItem] {
+        var r = [MenuItem(id: "all", name: "Todas as CAs") { [weak self] in self?.selectedAccountId = nil }]
+        r += accounts.map { a in MenuItem(id: a.id, name: a.name) { [weak self] in self?.selectedAccountId = a.id } }
+        return r
+    }
+    var productMenuItems: [MenuItem] {
+        var r = [MenuItem(id: "all", name: "Todos") { [weak self] in self?.selectedProductId = nil }]
+        r += products.map { p in MenuItem(id: p.id, name: p.name) { [weak self] in self?.selectedProductId = p.id } }
+        return r
+    }
+
     func setupAutoRefresh() {
-        // Observe app going to background/foreground
         NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)
             .sink { [weak self] _ in self?.backgroundedAt = Date(); self?.stopAutoRefresh() }
             .store(in: &cancellables)
-
         NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)
             .sink { [weak self] _ in
                 guard let self = self else { return }
                 let away = self.backgroundedAt.map { Date().timeIntervalSince($0) } ?? 0
                 self.backgroundedAt = nil
-                if away >= 60 {
-                    Task { await self.loadSummary() }
-                }
+                if away >= 60 { Task { await self.loadSummary() } }
                 if self.periodIncludesToday { self.startAutoRefresh() }
             }
             .store(in: &cancellables)
@@ -498,46 +530,7 @@ class DashboardViewModel: ObservableObject {
     }
 
     func stopAutoRefresh() {
-        autoRefreshTimer?.invalidate()
-        autoRefreshTimer = nil
-    }
-
-    var periodDisplayLabel: String {
-        if isCustomPeriod {
-            // Show short date range
-            let fmt = DateFormatter()
-            fmt.dateFormat = "dd/MM"
-            fmt.timeZone = TimeZone(secondsFromGMT: -3 * 3600)
-            let isoFmt = ISO8601DateFormatter()
-            isoFmt.timeZone = TimeZone(secondsFromGMT: 0)
-            if let f = isoFmt.date(from: customFrom), let t = isoFmt.date(from: customTo) {
-                return "\(fmt.string(from: f)) — \(fmt.string(from: t))"
-            }
-            return "Personalizado"
-        }
-        return selectedPeriod.label
-    }
-
-    var selectedAccountName: String {
-        if let id = selectedAccountId, let acc = accounts.first(where: { $0.id == id }) { return acc.name }
-        return "Todas as CAs"
-    }
-
-    var selectedProductName: String {
-        if let id = selectedProductId, let prod = products.first(where: { $0.id == id }) { return prod.name }
-        return "Todos"
-    }
-
-    var accountMenuItems: [MenuItem] {
-        var items = [MenuItem(id: "all", name: "Todas as CAs") { [weak self] in self?.selectedAccountId = nil }]
-        items += accounts.map { acc in MenuItem(id: acc.id, name: acc.name) { [weak self] in self?.selectedAccountId = acc.id } }
-        return items
-    }
-
-    var productMenuItems: [MenuItem] {
-        var items = [MenuItem(id: "all", name: "Todos") { [weak self] in self?.selectedProductId = nil }]
-        items += products.map { prod in MenuItem(id: prod.id, name: prod.name) { [weak self] in self?.selectedProductId = prod.id } }
-        return items
+        autoRefreshTimer?.invalidate(); autoRefreshTimer = nil
     }
 
     private let baseURL = DeviceManager.shared.baseURL
@@ -547,20 +540,16 @@ class DashboardViewModel: ObservableObject {
         async let a: () = loadAccounts()
         _ = await (p, a)
     }
-
     private func loadProducts() async {
         guard let url = URL(string: "\(baseURL)/dashboard/products") else { return }
-        var req = URLRequest(url: url)
-        req.setValue(deviceToken, forHTTPHeaderField: "X-Device-Token")
+        var req = URLRequest(url: url); req.setValue(deviceToken, forHTTPHeaderField: "X-Device-Token")
         guard let (data, _) = try? await URLSession.shared.data(for: req),
               let items = try? JSONDecoder().decode([FilterItem].self, from: data) else { return }
         products = items
     }
-
     private func loadAccounts() async {
         guard let url = URL(string: "\(baseURL)/dashboard/accounts") else { return }
-        var req = URLRequest(url: url)
-        req.setValue(deviceToken, forHTTPHeaderField: "X-Device-Token")
+        var req = URLRequest(url: url); req.setValue(deviceToken, forHTTPHeaderField: "X-Device-Token")
         guard let (data, _) = try? await URLSession.shared.data(for: req),
               let items = try? JSONDecoder().decode([FilterItem].self, from: data) else { return }
         accounts = items
@@ -568,37 +557,30 @@ class DashboardViewModel: ObservableObject {
 
     func loadSummary() async {
         isLoading = true
-
-        let from: String
-        let to: String
-        if isCustomPeriod {
-            from = customFrom
-            to = customTo
-        } else {
-            let range = selectedPeriod.dateRange
-            from = range.from
-            to = range.to
-        }
+        let from: String; let to: String
+        if isCustomPeriod { from = customFrom; to = customTo }
+        else { let r = selectedPeriod.dateRange; from = r.from; to = r.to }
 
         var urlString = "\(baseURL)/dashboard/summary?from=\(from)&to=\(to)"
         if let pid = selectedProductId { urlString += "&productIds=\(pid)" }
         if let aid = selectedAccountId { urlString += "&adAccountIds=\(aid)" }
 
         guard let url = URL(string: urlString) else { isLoading = false; return }
-        var req = URLRequest(url: url)
-        req.setValue(deviceToken, forHTTPHeaderField: "X-Device-Token")
+        var req = URLRequest(url: url); req.setValue(deviceToken, forHTTPHeaderField: "X-Device-Token")
 
         guard let (data, response) = try? await URLSession.shared.data(for: req),
-              (response as? HTTPURLResponse)?.statusCode == 200 else {
-            isLoading = false; return
-        }
+              (response as? HTTPURLResponse)?.statusCode == 200 else { isLoading = false; return }
 
         if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
             summary = DashboardSummary(json: json)
-            let fmt = DateFormatter()
-            fmt.dateFormat = "HH:mm:ss"
-            fmt.timeZone = TimeZone(secondsFromGMT: -3 * 3600)
-            lastUpdated = fmt.string(from: Date())
+            // Timestamp: only update for non-custom periods (matching desktop)
+            if !isCustomPeriod {
+                let fmt = DateFormatter(); fmt.dateFormat = "HH:mm:ss"
+                fmt.timeZone = TimeZone(secondsFromGMT: -3 * 3600)
+                lastUpdated = fmt.string(from: Date())
+            } else {
+                lastUpdated = nil
+            }
         }
         isLoading = false
     }
@@ -612,24 +594,19 @@ struct FilterItem: Codable, Identifiable {
 }
 
 struct DashboardSummary {
-    let spend: Int
-    let grossRevenue: Int
-    let netRevenue: Int
-    let profit: Int
-    let roas: Double
-    let roi: Double
-    let margin: Double
-    let pendingOrders: Int
-    let pendingRevenue: Int
-    let approvedOrders: Int
-    let refundedOrders: Int
-    let refundedRevenue: Int
-    let chargedbackOrders: Int
-    let chargedbackRevenue: Int
-    let returnedRevenue: Int
+    let spend, grossRevenue, netRevenue, profit: Int
+    let roas, roi, margin: Double
+    let pendingOrders, pendingRevenue, approvedOrders: Int
+    let refundedOrders, refundedRevenue, chargedbackOrders, chargedbackRevenue, returnedRevenue: Int
     let totalOrders: Int
-    let refundRate: Double
-    let chargebackRate: Double
+    let refundRate, chargebackRate: Double
+    let arpu, cpa: Int
+    let leads: Int
+    let costPerLead: Int
+    let salesTax, totalTax, metaAdsTax, fees: Int
+    let productCosts, additionalExpenses: Int
+    let conversations: Int
+    let costPerConversation: Int
 
     init(json: [String: Any]) {
         spend = json["spend"] as? Int ?? 0
@@ -650,18 +627,27 @@ struct DashboardSummary {
         totalOrders = json["totalOrders"] as? Int ?? 0
         refundRate = json["refundRate"] as? Double ?? 0
         chargebackRate = json["chargebackRate"] as? Double ?? 0
+        arpu = json["arpu"] as? Int ?? 0
+        cpa = json["cpa"] as? Int ?? 0
+        leads = json["leads"] as? Int ?? 0
+        costPerLead = json["costPerLead"] as? Int ?? 0
+        salesTax = json["salesTax"] as? Int ?? 0
+        totalTax = json["totalTax"] as? Int ?? 0
+        metaAdsTax = json["metaAdsTax"] as? Int ?? 0
+        fees = json["fees"] as? Int ?? 0
+        productCosts = json["productCosts"] as? Int ?? 0
+        additionalExpenses = json["additionalExpenses"] as? Int ?? 0
+        conversations = json["conversations"] as? Int ?? 0
+        costPerConversation = json["costPerConversation"] as? Int ?? 0
     }
 
     private func fmtCurrency(_ cents: Int) -> String {
-        let value = Double(cents) / 100.0
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.currencyCode = "BRL"
-        formatter.locale = Locale(identifier: "pt_BR")
-        formatter.minimumFractionDigits = 2
-        formatter.maximumFractionDigits = 2
-        return formatter.string(from: NSNumber(value: value)) ?? "R$ 0,00"
+        let v = Double(cents) / 100.0
+        let f = NumberFormatter(); f.numberStyle = .currency; f.currencyCode = "BRL"
+        f.locale = Locale(identifier: "pt_BR"); f.minimumFractionDigits = 2; f.maximumFractionDigits = 2
+        return f.string(from: NSNumber(value: v)) ?? "R$ 0,00"
     }
+    private func fmtInt(_ v: Int) -> String { v == 0 ? "0" : String(v) }
 
     var spendFormatted: String { fmtCurrency(spend) }
     var grossRevenueFormatted: String { fmtCurrency(grossRevenue) }
@@ -671,6 +657,18 @@ struct DashboardSummary {
     var refundedRevenueFormatted: String { fmtCurrency(refundedRevenue) }
     var chargedbackRevenueFormatted: String { fmtCurrency(chargedbackRevenue) }
     var returnedRevenueFormatted: String { fmtCurrency(returnedRevenue) }
+    var arpuFormatted: String { fmtCurrency(arpu) }
+    var cpaFormatted: String { fmtCurrency(cpa) }
+    var leadsFormatted: String { fmtInt(leads) }
+    var costPerLeadFormatted: String { fmtCurrency(costPerLead) }
+    var salesTaxFormatted: String { fmtCurrency(salesTax) }
+    var totalTaxFormatted: String { fmtCurrency(totalTax) }
+    var metaAdsTaxFormatted: String { fmtCurrency(metaAdsTax) }
+    var feesFormatted: String { fmtCurrency(fees) }
+    var productCostsFormatted: String { fmtCurrency(productCosts) }
+    var additionalExpensesFormatted: String { fmtCurrency(additionalExpenses) }
+    var conversationsFormatted: String { fmtInt(conversations) }
+    var costPerConversationFormatted: String { fmtCurrency(costPerConversation) }
 
     var roasFormatted: String { String(format: "%.2f", roas) }
     var roiFormatted: String { String(format: "%.2f", roi) }
