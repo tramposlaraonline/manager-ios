@@ -28,16 +28,11 @@ class DeviceManager: ObservableObject {
     @Published var reportAt23: Bool = true
 
     // Detect APNs environment: sandbox (Xcode) vs production (TestFlight/App Store)
+    // Xcode (debug) → sandbox APNs, TestFlight/App Store → production APNs
     static var apnsEnvironment: String {
         #if DEBUG
         return "sandbox"
         #else
-        if let url = Bundle.main.appStoreReceiptURL {
-            // Sandbox receipts contain "sandboxReceipt" in the path
-            if url.lastPathComponent == "sandboxReceipt" {
-                return "sandbox"
-            }
-        }
         return "production"
         #endif
     }
