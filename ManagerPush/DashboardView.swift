@@ -353,19 +353,24 @@ struct MetricCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
-        .background(Color.mgCard)
-        .clipShape(RoundedRectangle(cornerRadius: 9))
+        .background(
+            // Card background + gradient top border as a single composited layer
+            ZStack(alignment: .top) {
+                Color.mgCard
+                // Gradient uses a tall frame masked to the card shape,
+                // so it only paints along the top edge with proper rounding
+                VStack(spacing: 0) {
+                    LinearGradient(
+                        colors: [Color.mgAccent.opacity(0.6), Color.clear],
+                        startPoint: .leading, endPoint: .trailing
+                    )
+                    .frame(height: 2)
+                    Spacer()
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 9))
+        )
         .overlay(RoundedRectangle(cornerRadius: 9).stroke(Color.mgBorder, lineWidth: 1))
-        .overlay(alignment: .top) {
-            // Gradient bar inset by 1px so it sits inside the rounded border
-            LinearGradient(
-                colors: [Color.mgAccent.opacity(0.6), Color.clear],
-                startPoint: .leading, endPoint: .trailing
-            )
-            .frame(height: 2)
-            .padding(.horizontal, 1)
-            .padding(.top, 1)
-        }
     }
 }
 
