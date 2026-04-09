@@ -25,20 +25,35 @@ struct DashboardView: View {
     @State private var showCustomDate = false
 
     var body: some View {
-        List {
+        VStack(spacing: 0) {
+            // Fixed toolbar
             toolbarSection
-                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 16, trailing: 16))
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 12)
 
-            metricsContent
-                .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
+            // Timestamp row between toolbar and metrics
+            HStack {
+                Spacer()
+                Text(vm.statusText)
+                    .font(.system(size: 9, weight: .regular, design: .monospaced))
+                    .foregroundColor(vm.isLoading ? .mgText3.opacity(0.6) : .mgText3.opacity(0.4))
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 6)
+            .opacity(vm.statusText.isEmpty ? 0 : 1)
+
+            // Scrollable metrics
+            List {
+                metricsContent
+                    .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .refreshable { await vm.loadSummary() }
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .refreshable { await vm.loadSummary() }
         .background(Color.mgBg)
         .onAppear {
             vm.setupAutoRefresh()
@@ -110,17 +125,6 @@ struct DashboardView: View {
                 filterChip(label: "Produto", value: vm.selectedProductName, items: vm.productMenuItems)
             }
             .padding(.top, 10)
-
-            // Timestamp — below filters, right-aligned, only for live periods
-            if let ts = vm.lastUpdated, !vm.isCustomPeriod {
-                HStack {
-                    Spacer()
-                    Text("atualizado às \(ts)")
-                        .font(.system(size: 9, design: .monospaced))
-                        .foregroundColor(.mgText3.opacity(0.4))
-                }
-                .padding(.top, 8)
-            }
         }
         .padding(12)
         .background(
@@ -458,6 +462,17 @@ class DashboardViewModel: ObservableObject {
     @Published var summary: DashboardSummary?
     @Published var isLoading = false
     @Published var lastUpdated: String?
+
+    // Desktop-matching status text logic:
+    // - "carregando..." while loading (non-custom only)
+    // - "atualizado às HH:mm:ss" after load (non-custom only)
+    // - empty for custom periods
+    var statusText: String {
+        if isCustomPeriod { return "" }
+        if isLoading { return "carregando..." }
+        if let ts = lastUpdated { return "atualizado às \(ts)" }
+        return ""
+    }
 
     private var autoRefreshTimer: Timer?
     private var backgroundedAt: Date?
