@@ -187,41 +187,19 @@ struct DashboardView: View {
             if let s = vm.summary {
                 let w = UIScreen.main.bounds.width - 32
                 VStack(spacing: 14) {
-                    // Row 1
                     MetricCard(label: "Gastos com Anúncios", value: s.spendFormatted)
                     MetricCard(label: "Faturamento Bruto", value: s.grossRevenueFormatted)
                     MetricCard(label: "Faturamento Líquido", value: s.netRevenueFormatted)
-
-                    // Row 2
                     MetricCard(label: "Lucro", value: s.profitFormatted, valueColor: s.profitColor)
+
                     HStack(spacing: 10) {
                         MetricCard(label: "ROAS", value: s.roasFormatted, valueColor: s.roasColor, valueSize: 19)
                         MetricCard(label: "ROI", value: s.roiFormatted, valueColor: s.roiColor, valueSize: 19)
                         MetricCard(label: "Margem", value: s.marginFormatted, valueColor: s.marginColor, valueSize: 19)
                     }
+
                     MetricCard(label: "Vendas Pendentes", value: s.pendingRevenueFormatted)
 
-                    // Row 3: ARPU, CPA, Leads, Custo por Lead
-                    HStack(spacing: 10) {
-                        MetricCard(label: "ARPU", value: s.arpuFormatted, valueSize: 17)
-                        MetricCard(label: "CPA", value: s.cpaFormatted, valueSize: 17)
-                    }
-                    HStack(spacing: 10) {
-                        MetricCard(label: "Leads", value: s.leadsFormatted, valueSize: 17)
-                        MetricCard(label: "Custo por Lead", value: s.costPerLeadFormatted, valueSize: 17)
-                    }
-
-                    // Row 4: Impostos e Taxas
-                    HStack(spacing: 10) {
-                        MetricCard(label: "Imp. sobre Vendas", value: s.salesTaxFormatted, valueSize: 17)
-                        MetricCard(label: "Imp. Total", value: s.totalTaxFormatted, valueSize: 17)
-                    }
-                    HStack(spacing: 10) {
-                        MetricCard(label: "Imp. Meta Ads", value: s.metaAdsTaxFormatted, valueSize: 17)
-                        MetricCard(label: "Taxas", value: s.feesFormatted, valueSize: 17)
-                    }
-
-                    // Row 5: Reembolso, Chargeback, Custos
                     HStack(spacing: 10) {
                         MetricCard(label: "Vendas Reembolsadas", value: s.refundedRevenueFormatted)
                             .frame(width: (w - 10) * 0.7)
@@ -239,8 +217,24 @@ struct DashboardView: View {
                         MetricCard(label: "Despesas Adicionais", value: s.additionalExpensesFormatted)
                     }
 
-                    // Row 6: Devolvidas, Conversas
                     MetricCard(label: "Vendas Devolvidas", value: s.returnedRevenueFormatted)
+
+                    HStack(spacing: 10) {
+                        MetricCard(label: "ARPU", value: s.arpuFormatted, valueSize: 17)
+                        MetricCard(label: "CPA", value: s.cpaFormatted, valueSize: 17)
+                    }
+                    HStack(spacing: 10) {
+                        MetricCard(label: "Leads", value: s.leadsFormatted, valueSize: 17)
+                        MetricCard(label: "Custo por Lead", value: s.costPerLeadFormatted, valueSize: 17)
+                    }
+                    HStack(spacing: 10) {
+                        MetricCard(label: "Imp. sobre Vendas", value: s.salesTaxFormatted, valueSize: 17)
+                        MetricCard(label: "Imp. Total", value: s.totalTaxFormatted, valueSize: 17)
+                    }
+                    HStack(spacing: 10) {
+                        MetricCard(label: "Imp. Meta Ads", value: s.metaAdsTaxFormatted, valueSize: 17)
+                        MetricCard(label: "Taxas", value: s.feesFormatted, valueSize: 17)
+                    }
                     HStack(spacing: 10) {
                         MetricCard(label: "Conversas", value: s.conversationsFormatted, valueSize: 17)
                         MetricCard(label: "Custo por Conversa", value: s.costPerConversationFormatted, valueSize: 17)
